@@ -82,4 +82,4 @@ $ docker stop boring_merkle
 $ docker start 19411e21c4fa ឬ $ docker start boring_merkle
 ```
 
-- ប្រើសម្រាប់ run container ដែលមានរួចជាស្រេច ដែលចង់ប្រើជម្រើស start ដោយ ID របស់ container ក៏បាន​ ឬក៏ប្រើជម្រើស​ start ដោយឈ្មោះរបស់ container ក៏បាន។
+- ប្រើសម្រាប់ run container ដែលមានរួចជាស្រេច ដែលអ្នកចង់ប្រើជម្រើស start ដោយ ID របស់ container ក៏បាន​ ឬក៏ប្រើជម្រើស​ start ដោយឈ្មោះរបស់ container ក៏បាន។
