@@ -16,3 +16,18 @@
     - នៅមានបន្តទៀត!!!
 ---
 
+- docker pull nginx : ប្រើសម្រាប់ទាញយក image ចេញពី docker hub ហើយ nginx ជាឈ្មោះរបស់ image។
+
+- docker images ឬ​ docker image ls : ប្រើសម្រាប់បង្ហាញនូវ images ដែលមាននៅក្នុង local machine ទាំងអស់។
+
+- docker run nginx:latest : ប្រើសម្រាប់ run container របស់ image ដែល nginx គឺជាឈ្មោះរបស់ image រីឯ latest ដែលនៅជាប់នោះគឺ​ version របស់ image ហើយត្រូវភ្ជាប់វាជាមួយនឹងសញ្ញា colon(:) នៅពីមុខ version ផង។
+
+- docker container ls ឬ docker ps : ប្រើសម្រាប់បង្ហាញនូវ container ទាំងអស់ដែលកំពុងត្រូវបាន run ។
+
+- docker run -d nginx:latest : ប្រើសម្រាប់ run container ដូចនឹង docker run nginx:latest ដែរ តែ​ command នេះគឺប្រតិបត្តិលក្ខណះជា detached mode ពោលគឺជា run container ហើយគឺអ្នកអាចប្រើប្រាស់ console ដែលអ្នកកំពុង run container បានធម្មតា តែបើប្រើ command ខាងលើដំបូងនោះវិញគឺមិនអាចប្រើប្រាស់ console បាននោះទេ។
+
+- docker stop 19411e21c4fa :​ ប្រើសម្រាប់ stop container ហើយ 19411e21c4fa​​ គឺជាលេខ ID របស់ container ។
+
+- docker run -d -p 9000:80 nginx:latest : ប្រើសម្រាប់ run container ជាលក្ខណះ detached mode ហើយមានការរួមបញ្ចូលជាមួយនឹងការបញ្ជាក់យ៉ាងច្បាស់ជាមួយនឹង expose port ដែលទុកប្រើសម្រាប់ដំណើរការកម្មវិធី nginx ហើយដើម្បីបញ្ជាក់ expose port បាន អ្នកត្រូវប្រើ -p flag ហើយបន្ទាប់គឺ port ដែលអ្នកចង់ដាក់ ហើយបន្ទាប់គឺសញ្ញា colon(:) ហើយបន្ទាប់គឺ port របស់ container នោះផ្ទាល់។
+
+- docker ps -a :​ ប្រើសម្រាប់បង្ហាញនៅរាល់ container ទាំងអស់ មិនថា container មួយនោះកំពុងត្រូវបាន run ឬ stop ក្តី។
