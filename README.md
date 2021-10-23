@@ -22,13 +22,13 @@
 $ docker pull nginx
 ```
 
-- ប្រើសម្រាប់ទាញយក image ចេញពី docker hub ហើយ nginx ជាឈ្មោះរបស់ image
+- ប្រើសម្រាប់ទាញយក image ចេញពី docker hub ហើយ nginx ជាឈ្មោះរបស់ image ។
 
 ```js
-$ docker images ឬ​ docker image ls
+$ docker images ឬ​ $ docker image ls
 ```
 
-- ប្រើសម្រាប់បង្ហាញនូវ images ដែលមាននៅក្នុង local machine ទាំងអស់
+- ប្រើសម្រាប់បង្ហាញនូវ images ដែលមាននៅក្នុង local machine ទាំងអស់។
 
 ```js
 $ docker run nginx:latest 
@@ -37,7 +37,7 @@ $ docker run nginx:latest
 - ប្រើសម្រាប់ run container របស់ image ដែល nginx គឺជាឈ្មោះរបស់ image រីឯ latest ដែលនៅជាប់នោះគឺ​ version របស់ image ហើយត្រូវភ្ជាប់វាជាមួយនឹងសញ្ញា colon(:) នៅពីមុខ version ផង។
 
 ```js
-$ docker container ls ឬ docker ps 
+$ docker container ls ឬ $ docker ps 
 ```
 
 - ប្រើសម្រាប់បង្ហាញនូវ container ទាំងអស់ដែលកំពុងត្រូវបាន run ។
@@ -71,3 +71,15 @@ $ docker ps -a
 ```
 
 - ប្រើសម្រាប់បង្ហាញនៅរាល់ container ទាំងអស់ មិនថា container មួយនោះកំពុងត្រូវបាន run ឬ stop ក្តី។
+
+```js
+$ docker stop boring_merkle
+```
+
+- ប្រើសម្រាប់ stop container ដូចទៅនឹង command ខាងលើដែរតែ command (docker stop 19411e21c4fa) ខាងលើគឺប្រើ ID របស់ container តែ command នេះវិញគឺប្រើឈ្មោះរបស់ container វិញ តែយ៉ាងណាមិញអ្នកចង់ប្រើជម្រើសមួយណាក៏បាន។
+
+```js
+$ docker start 19411e21c4fa ឬ $ docker start boring_merkle
+```
+
+- ប្រើសម្រាប់ run container ដែលមានរួចជាស្រេច ដែលចង់ប្រើជម្រើស start ដោយ ID របស់ container ក៏បាន​ ឬក៏ប្រើជម្រើស​ start ដោយឈ្មោះរបស់ container ក៏បាន។
