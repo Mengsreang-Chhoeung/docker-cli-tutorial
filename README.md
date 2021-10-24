@@ -18,17 +18,23 @@
 
 ### Commands ពិសេសៗដែលត្រូវប្រើជាប្រចាំថ្ងៃ:
 
+#### - <u>Pulling Image</u>:
+
 ```js
 $ docker pull nginx
 ```
 
 - ប្រើសម្រាប់ទាញយក image ចេញពី docker hub ហើយ nginx ជាឈ្មោះរបស់ image ។
 
+#### - <u>Showing Image</u>:
+
 ```js
 $ docker images ឬ​ $ docker image ls
 ```
 
 - ប្រើសម្រាប់បង្ហាញនូវ images ដែលមាននៅក្នុង local machine ទាំងអស់។
+
+#### - <u>Running Container</u>:
 
 ```js
 $ docker run nginx:latest 
@@ -53,6 +59,8 @@ $ docker stop 19411e21c4fa
 ```
 
 - ប្រើសម្រាប់ stop container ហើយ 19411e21c4fa​​ គឺជាលេខ ID របស់ container ។
+
+#### - <u>Exposing Port</u>:
 
 ```js
 $ docker run -d -p 9000:80 nginx:latest
@@ -83,6 +91,8 @@ $ docker start 19411e21c4fa ឬ $ docker start boring_merkle
 ```
 
 - ប្រើសម្រាប់ run container ដែលមានរួចជាស្រេច ដែលអ្នកចង់ប្រើជម្រើស start ដោយ ID របស់ container ក៏បាន​ ឬក៏ប្រើជម្រើស​ start ដោយឈ្មោះរបស់ container ក៏បាន។
+
+#### - <u>Managing Containers</u>:
 
 ```js
 $ docker rm 19411e21c4fa ឬ $ docker rm boring_merkle
@@ -119,3 +129,30 @@ $ docker rm -f $(docker ps -q)
 ```
 
 - ប្រើសម្រាប់លុប container ចោលទាំងអស់ដែរ តែអ្នកអាចលុបទាំង containers ដែលកំពុងតែត្រូវបាន run ។
+
+#### - <u>Naming Container</u>:
+
+```js
+$ docker run -d --name nginx-ms -p 9000:80 nginx:latest
+```
+
+- ប្រើសម្រាប់កំណត់ឈ្មោះទៅតាមឈ្មោះអ្វីដែលអ្នកចង់ដាក់ --name គឺជា ​flag តំណាងឲ្យការកំណត់ឈ្មោះ ចំណែកឯ nginx-ms គឺជាឈ្មោះរបស់ container ដែលអ្នកចង់ដាក់។
+
+```js
+$ docker ps --format="ID\t{{.ID}}\nNAME\t{{.Names}}\nImage\t{{.Image}}\nPORTS\t{{.Ports}}\nCOMMAND\t{{.Command}}\nCREATED\t{{.CreatedAt}}\nSTATUS\t{{.Status}}\n"
+```
+
+- ប្រើសម្រាប់បង្ហាញនូវ containers ទាំងអស់ដែលកំពុងត្រូវបាន run ក្នុងលក្ខណះ format ងាយស្រួលក្នុងការមើល។
+
+```js
+$ export FORMAT="ID\t{{.ID}}\nNAME\t{{.Names}}\nImage\t{{.Image}}\nPORTS\t{{.Ports}}\nCOMMAND\t{{.Command}}\nCREATED\t{{.CreatedAt}}\nSTATUS\t{{.Status}}\n"
+```
+
+- ប្រើសម្រាប់ export path variable នៅក្នុង local machine ដើម្បីងាយស្រួលហៅប្រើលើកក្រោយដោយមិនចាំបាច់សរសេរច្រើនបន្ថែមទៀត។
+
+```js 
+$ docker ps --format=$FORMAT
+```
+
+- ប្រើសម្រាប់បង្ហាញ container ដែលមានលក្ខណះ format ដោយហៅពី path variable មក។
+
