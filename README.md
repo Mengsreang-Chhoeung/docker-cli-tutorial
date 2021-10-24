@@ -83,3 +83,15 @@ $ docker start 19411e21c4fa ឬ $ docker start boring_merkle
 ```
 
 - ប្រើសម្រាប់ run container ដែលមានរួចជាស្រេច ដែលអ្នកចង់ប្រើជម្រើស start ដោយ ID របស់ container ក៏បាន​ ឬក៏ប្រើជម្រើស​ start ដោយឈ្មោះរបស់ container ក៏បាន។
+
+```js
+$ docker rm 19411e21c4fa ឬ $ docker rm boring_merkle
+```
+
+- ប្រើសម្រាប់លុប container ចោលហើយការលុបមួយនេះ អ្នកអាចលុបដោយប្រើ ID របស់ container ក៏បានឬក៏ឈ្មោះរបស់ container ក៏​បាន ហើយមួយវិញទៀត អ្នកអាចលុប container ចោលបាន លុះត្រាតែ container នោះត្រូវបាន stop ។
+
+```js
+$ docker rm -f 19411e21c4fa ឬ $ docker rm -f boring_merkle
+```
+
+- ប្រើសម្រាប់លុប container ចោលដូចនឹង command ខាងលើដែរ តែការលុបនេះគឺលុបក្នុងលក្ខណះ force mode គឺមានន័យថាលុប container ចោលដោយមិនចាំបាច់ត្រូវ stop container នោះទេ ហើយការលុបមួយនេះ អ្នកអាចលុបដោយប្រើ ID របស់ container ក៏បានឬក៏ឈ្មោះរបស់ container ក៏​បាន។
