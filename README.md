@@ -95,3 +95,27 @@ $ docker rm -f 19411e21c4fa ឬ $ docker rm -f boring_merkle
 ```
 
 - ប្រើសម្រាប់លុប container ចោលដូចនឹង command ខាងលើដែរ តែការលុបនេះគឺលុបក្នុងលក្ខណះ force mode គឺមានន័យថាលុប container ចោលដោយមិនចាំបាច់ត្រូវ stop container នោះទេ ហើយការលុបមួយនេះ អ្នកអាចលុបដោយប្រើ ID របស់ container ក៏បានឬក៏ឈ្មោះរបស់ container ក៏​បាន។
+
+```js
+$ docker ps -q
+```
+
+- ប្រើសម្រាប់បង្ហាញតែ ID របស់ container ដែលកំពុងត្រូវបាន run ។
+
+```js
+$ docker ps -aq ឬ $ docker ps -a -q
+```
+
+​- ប្រើសម្រាប់បង្ហាញតែ ID របស់ container ទាំង container ដែលកំពុងត្រូវបាន run និងមិនកំពុងត្រូវបាន run ។
+
+```js
+$ docker rm $(docker ps -aq)
+```
+
+- ប្រើសម្រាប់លុប container ចោលទាំងអស់ដោយប្រើ ID របស់ container សម្រាប់រាល់ containers ដែលត្រូវបាន stop ។
+
+```js
+$ docker rm -f $(docker ps -q)
+```
+
+- ប្រើសម្រាប់លុប container ចោលទាំងអស់ដែរ តែអ្នកអាចលុបទាំង containers ដែលកំពុងតែត្រូវបាន run ។
