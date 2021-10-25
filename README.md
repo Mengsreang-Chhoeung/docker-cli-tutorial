@@ -156,3 +156,17 @@ $ docker ps --format=$FORMAT
 
 - ប្រើសម្រាប់បង្ហាញ container ដែលមានលក្ខណះ format ដោយហៅពី path variable មក។
 
+#### - <u>Volumes</u>:
+
+```js
+$ docker run --name cambodia-website -d -p 9000:80 -v /home/mengsreang/Desktop/cambodia-website:/usr/share/nginx/html nginx:latest    
+```
+
+- ប្រើសម្រាប់​ run container ដោយមានកំណត់ជាលក្ខណះ volumes ដែលធ្វើការភ្ជាប់ project ដែលមាននៅក្នុងកុំព្យូទ័ររបស់អ្នកទៅកាន់ server របស់ nginx ក្នុង docker ។​ សម្រាយបន្តិច: -v flag គឺតំណាងឲ្យ volumes រីឯ /home/mengsreang/Desktop/cambodia-website គឺជាទីតាំងរបស់ project របស់អ្នកនៅក្នុងកំព្យូទ័រ ហើយមួយទៀតគឺ /usr/share/nginx/html គឺជាទីតាំង project របស់ nginx server ហើយកុំភ្លេចដាក់សញ្ញា colon(:) នៅពីមុខផង។
+
+```js
+$ docker exec -it cambodia-website bash
+```
+
+- ប្រើសម្រាប់បង្កើត bash ដើម្បីចូលទៅមើល project នៅក្នុង nginx server ។​ សម្រាយបន្តិច exec គឺតំណាងឲ្យការ execute រីឯ -it គឺមានន័យថា execute bash ជាលក្ខណះ interative mode ។ 
+
