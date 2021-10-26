@@ -1,0 +1,53 @@
+.detail {
+  width: 100%;
+  padding: 30px 100px;
+}
+
+.detail form {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 60%;
+  margin: auto;
+}
+
+.detail form input {
+  margin-bottom: 20px;
+  height: 50px;
+  padding: 10px;
+  font-size: 18px;
+}
+
+.detail form textarea {
+  margin-bottom: 20px;
+  padding: 10px;
+  font-size: 18px;
+}
+
+@media (max-width: 1280px) {
+  .detail {
+    padding: 30px 80px;
+  }
+  .detail form {
+    width: 70%;
+  }
+}
+
+@media (max-width: 992px) {
+  .detail {
+    padding: 30px 60px;
+  }
+  .detail form {
+    width: 80%;
+  }
+}
+
+@media (max-width: 768px) {
+  .detail {
+    padding: 30px;
+  }
+  .detail .form {
+    width: 90%;
+  }
+}

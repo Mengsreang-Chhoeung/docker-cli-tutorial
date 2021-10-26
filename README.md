@@ -170,3 +170,4 @@ $ docker exec -it cambodia-website bash
 
 - ប្រើសម្រាប់បង្កើត bash ដើម្បីចូលទៅមើល project នៅក្នុង nginx server ។​ សម្រាយបន្តិច exec គឺតំណាងឲ្យការ execute រីឯ -it គឺមានន័យថា execute bash ជាលក្ខណះ interative mode ។ 
 
+#### - <u>Dockerfile</u>:
