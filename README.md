@@ -171,3 +171,26 @@ $ docker exec -it cambodia-website bash
 - ប្រើសម្រាប់បង្កើត bash ដើម្បីចូលទៅមើល project នៅក្នុង nginx server ។​ សម្រាយបន្តិច exec គឺតំណាងឲ្យការ execute រីឯ -it គឺមានន័យថា execute bash ជាលក្ខណះ interative mode ។ 
 
 #### - <u>Dockerfile</u>:
+
+- នៅក្នុងចំណុចនេះនឹងបង្ហាញអ្នកអំពីការប្រើប្រាស់ Dockerfile ដើម្បី build image ផ្ទាល់ខ្លួនមួយសម្រាប់ project នីមួយៗ ដែលឧទាហរណ៍ទីមួយនឹងបង្ហាញអំពីការប្រើប្រាស់ Dockerfile នៅក្នុង project website ធម្មតាដែលប្រើ technology ដូចជា HTML, CSS, JS ដែលអ្នកអាច clone project តាមរយះតំណរនេះបាន `https://github.com/Mengsreang-Chhoeung/cambodia-website`។ បន្ទាប់ពីបាន clone រួចរាល់ អ្នកត្រូវបង្កើត file មួយមានឈ្មោះថា Dockerfile ដែលផ្ទុកនៅក្នុង root project បន្ទាប់មកចូលទៅក្នុង file នោះហើយសរសេរ command ដូចខាងក្រោម:
+
+```js
+FROM nginx:latest
+COPY . /usr/share/nginx/html
+```
+
+- សម្រាយបន្តិច: `FROM nginx:latest` មានន័យថា ក្នុង project មួយនេះគឺអ្នកប្រើ image មកពី nginx ហើយ version ចុងក្រោយ រីឯ `COPY . /usr/share/nginx/html` មានន័យថាចំលង project ពីក្នុង folder នេះទៅដាក់ក្នុង folder របស់ nginx ដែលស្ថិតនៅក្នុង server ។
+
+- បន្ទាប់ទៀត អ្នកត្រូវប្រើ Terminal ហើយត្រូវបញ្ជាក់ខ្លួនឯងឲ្យច្បាស់ថាខ្លួនប្រាកដជាកំពុងឈរនៅក្នុង root project បន្ទាប់មក run command ខាងក្រោម:
+
+```js
+$ docker build -t cambodia-website-image:latest . ឬ​ $ docker build --tag cambodia-website-image:latest .
+```
+
+- ប្រើសម្រាប់​ build image សម្រាប់ -t ឬ --tag គឺជា flag បញ្ជាក់ពី tag រីឯ cambodia-website-image:latest គឺជាឈ្មោះ image ថ្មីដែលអ្នកអាចដាក់ឈ្មោះអ្វីក៏បាន រីឯសញ្ញា <b>`.`</b> គឺចង់បញ្ជាក់ថា image មួយនឹង build ចេញពី project មួយនឹង។
+
+```js
+$ docker run --name cambodia-website-2 -d -p 9010:80 cambodia-website-image:latest 
+```
+
+- ប្រើសម្រាប់ run container របស់ image ដែលអ្នកបានបង្កើតនៅមុននេះបន្តិច។
