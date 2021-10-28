@@ -214,3 +214,15 @@ $ docker build -t cambodia-web-api-image:latest .
 $ docker run -d --name cambodia-web-api -p 9020:3000 cambodia-web-api-image:latest
 ```
 
+#### - <u>.dockerignore</u>:
+
+- .dockerignore ជា file មួយដែលត្រូវបង្កើតឡើងដូចទៅនឹង Dockerfile ចឹងគឺបង្កើតនៅក្នុង root project ហើយវាប្រើសម្រាប់ ignore file ឬ folder មួយចំនួនកុំឲ្យ build នឹង push ទៅ docker ។
+
+```js
+/node_modules
+Dockerfile
+.gitignore
+```
+
+- មានន័យថា ពេល build នឹង push គឺអ្នកនឹងមិនយក folder node_modules, Dockerfile នឹង .gitignore ទៅជាមួយទេ។
+
