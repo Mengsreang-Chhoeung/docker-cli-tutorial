@@ -226,3 +226,10 @@ Dockerfile
 
 - មានន័យថា ពេល build នឹង push គឺអ្នកនឹងមិនយក folder node_modules, Dockerfile នឹង .gitignore ទៅជាមួយទេ។
 
+#### - <u>Remove Image</u>:
+
+```js
+$ docker rmi 5f73314833c3
+```
+
+- ប្រើសម្រាប់ remove image តែដើម្បីអាចលុបបាន លុះត្រា container របស់ image នោះត្រូវបាន ​stop ជាមុនសិន។
