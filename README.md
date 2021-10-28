@@ -194,3 +194,23 @@ $ docker run --name cambodia-website-2 -d -p 9010:80 cambodia-website-image:late
 ```
 
 - ប្រើសម្រាប់ run container របស់ image ដែលអ្នកបានបង្កើតនៅមុននេះបន្តិច។
+
+```js
+FROM node:latest
+WORKDIR /app
+ADD package*.json ./
+RUN npm install
+ADD . .
+CMD node app.js
+```
+
+- Command ខាងលើគឺប្រើក្នុង project របស់ node ដើម្បីធ្វើ api ដែល `FROM node:latest` មានន័យថា pull image node ដែលមានជំនាន់ចុងក្រោយ រីឯ `WORKDIR /app` មានន័យថា application នៅក្នុង project មួយនេះគឺប្រតិបត្តិការនៅក្នុង folder app ក្នុង container របស់ image node រីឯ `ADD package*.json ./` មានន័យថា add file package.json នឹង package-lock.json ចូលទៅក្នុង folder app រីឯ `RUN npm install` មានន័យថា run command ដើម្បី install dependencies ដែលបានកំណត់ទុកនៅក្នុង package.json រីឯ `ADD . .` មានន័យថា add file project ផ្សេងៗទៀតចូលទៅក្នុង folder app រីឯ `CMD node app.js` មានន័យថាប្រើ command cmd ដើម្បីប្រតិបត្តិ api ។ បន្ទាប់មក​ប្រើ command docker build, នឹង run container ដូចខាងក្រោម:
+
+```js
+$ docker build -t cambodia-web-api-image:latest .
+```
+
+```js
+$ docker run -d --name cambodia-web-api -p 9020:3000 cambodia-web-api-image:latest
+```
+
