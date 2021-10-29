@@ -248,3 +248,17 @@ $ docker run -d --name website -p 9030:80 nginx:latest
 
 - ប្រើសម្រាប់ run container របស់ image ដែលប្រើ alpine ។
 
+### - <u>Tags and Versioning</u>:
+
+```js
+$ docker pull node:17.0.1
+```
+
+- ប្រើសម្រាប់​ pull image ដោយមានជាការកំណត់ version របស់ image ។
+
+```js
+$ docker pull node:17.0.1-alpine
+```
+
+- ប្រើសម្រាប់ pull image ដោយមានជាការកំណត់ version របស់​ image ដូចគ្នាតែជាលក្ខណះ alpine version ។
+
