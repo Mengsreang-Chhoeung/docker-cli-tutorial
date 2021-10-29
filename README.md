@@ -233,3 +233,18 @@ $ docker rmi 5f73314833c3
 ```
 
 - ប្រើសម្រាប់ remove image តែដើម្បីអាចលុបបាន លុះត្រា container របស់ image នោះត្រូវបាន ​stop ជាមុនសិន។
+
+### - <u>Reducing Image Size</u>:
+
+```js
+$ docker pull nginx:alpine
+```
+
+- ប្រើសម្រាប់ pull image ដូចគ្នាតែ pull image បែបមានទំហំតូច។
+
+```js
+$ docker run -d --name website -p 9030:80 nginx:latest
+```
+
+- ប្រើសម្រាប់ run container របស់ image ដែលប្រើ alpine ។
+
