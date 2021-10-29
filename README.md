@@ -229,10 +229,10 @@ Dockerfile
 #### - <u>Remove Image</u>:
 
 ```js
-$ docker rmi 5f73314833c3
+$ docker rmi 5f73314833c3 ឬ​ $ docker rmi cambodia-web-api-image:latest
 ```
 
-- ប្រើសម្រាប់ remove image តែដើម្បីអាចលុបបាន លុះត្រា container របស់ image នោះត្រូវបាន ​stop ជាមុនសិន។
+- ប្រើសម្រាប់ remove image តែដើម្បីអាចលុបបាន លុះត្រា container របស់ image នោះត្រូវបាន ​stop ជាមុនសិន។ អ្នកអាចប្រើ ID របស់ container ឬក៏ឈ្មោះរបស់ container ដើម្បីលុបបាន។
 
 ### - <u>Reducing Image Size</u>:
 
@@ -268,3 +268,28 @@ $ docker tag cambodia-web-api-web:latest cambodia-web-api-web:2.0.1
 
 - ប្រើសម្រាប់ tag ពី image មួយទៅ image ថ្មីមួយទៀត និយាយមួយម៉ាត់ឲ្យខ្លីគឺដូចការ copy និង​ paste អញ្ចឹង។
 
+### - <u>Docker Registries</u>:
+
+```js
+$ docker tag cambodia-web-api-web:latest chms7890/website:latest
+```
+
+- ប្រើសម្រាប់ tag ពី image ដែលមានស្រាប់ទៅ image ថ្មីមួយទៀតដែលផ្តើមឈ្មោះដោយឈ្មោះរបស់ repository នៅក្នុង dockerhub ។
+
+```js
+$ docker login
+```
+
+- ប្រើសម្រាប់ login នូវ account docker ។
+
+```js
+$ docker push chms7890/website:latest
+```
+
+- ប្រើសម្រាប់ push image ទៅកាន់ repository ។
+
+```js
+$ docker pull chms7890/website:latest
+```
+
+- ប្រើសម្រាប់ pull image មកវិញ។
