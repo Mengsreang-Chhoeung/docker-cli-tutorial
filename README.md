@@ -262,3 +262,9 @@ $ docker pull node:17.0.1-alpine
 
 - ប្រើសម្រាប់ pull image ដោយមានជាការកំណត់ version របស់​ image ដូចគ្នាតែជាលក្ខណះ alpine version ។
 
+```js
+$ docker tag cambodia-web-api-web:latest cambodia-web-api-web:2.0.1
+```
+
+- ប្រើសម្រាប់ tag ពី image មួយទៅ image ថ្មីមួយទៀត និយាយមួយម៉ាត់ឲ្យខ្លីគឺដូចការ copy និង​ paste អញ្ចឹង។
+
