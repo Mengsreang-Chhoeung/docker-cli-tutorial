@@ -293,3 +293,29 @@ $ docker pull chms7890/website:latest
 ```
 
 - ប្រើសម្រាប់ pull image មកវិញ។
+
+### - <u>Debugging Containers</u>:
+
+```js
+$ docker inspect cambodia-web-api-image:latest ឬ $ docker inspect cambodia-web-api
+```
+
+- ប្រើសម្រាប់ inspect មើល detail របស់ image ឬ container ដែលអ្នកអាចប្រើឈ្មោះរបស់ image ឬ container ឬ ID របស់ container ឬ image ក៏បាន។
+
+```js
+$ docker logs cambodia-web-api
+```
+
+- ប្រើសម្រាប់ log មើលប្រតិបត្តិការរបស់ container ដែលអ្នកអាចប្រើ ID របស់ container ក៏បានឬក៏ឈ្មោះរបស់ container ក៏បាន។
+
+```js
+$ docker logs -f cambodia-web-api
+```
+
+- ប្រើសម្រាប់ log ដូច command ខាងលើដែរ តែជាលក្ខណះ follow mode គឺមានន័យថា log នឹងដំណើរការរហូតដល់ពេល container ត្រូវបាន stop ។
+
+```js
+$ docker system prune
+```
+
+- ប្រើសម្រាប់លុបទិន្នន័យដែលមិនត្រូវប្រើចោលទាំងអស់ ដូចជា override image tag ជាដើម។
