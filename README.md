@@ -2,18 +2,38 @@
 
 ![docker thumbnail](/_thumbnail_doc/docker.jpg "Docker Tutorial")
 
+### និយមន័យនៃ Docker:
+
 - ក្នុងន័យសាមញ្ញ, **Docker** ជាកម្មវិធីមួយដែលសម្រួលដំណើរការនៃការបង្កើតកម្មវិធី, គ្រប់គ្រងកម្មវិធីនិងចែកចាយកម្មវិធីទៅកន្លែងផ្សេងទៀត។ វាធ្វើដូចនេះដោយធ្វើឲ្យគ្រប់ប្រព័ន្ធប្រតិបត្តិការរបស់កុំព្យូទ័រទាំងអស់អាចទាញយកកម្មវិធីនិងដំណើរការកម្មវិធីណាមួយដោយមានភាពងាយស្រួល និងគ្មានការកំណត់រចនាសម្ព័ន្ធអីច្រើននោះទេ។
 
 - **Docker** ត្រូវបានបង្កើតឡើងដោយប្រើភាសា _Golang Programming Language_ ។
 
-## Docker Architecture
+### Docker ធ្វើឱ្យការអភិវឌ្ឍន៍ប្រកបដោយមានប្រសិទ្ធភាព:
 
-![docker architecture thumbnail](/_thumbnail_doc/docker-architecture.png "Docker Architecture Tutorial")
+- **Docker** បានកាត់បន្ថយនូវភាពច្រំដែលនិង ការកំណត់រចនាសម្ព័ន្ធដែលមានភាពស្មុគស្មាញចោល ហើយជំនួសមកវិញជាមួយនឹងវដ្តជីវិតនៃការអភិវឌ្ឍន៍ដែលមានភាពឆាប់រហ័ស, ងាយស្រួល, មានលក្ខណះបត់បែនសម្រាប់ការអភិវឌ្ឍន៍ទាំង `desktop` និង `cloud` ។ **Docker​ Platform** គឺមានលក្ខណះទូលំទូលាយដែលរួមបញ្ចូលជាមួយនឹង UIs, CLIs, APIs, និង Security ដែលបង្កើតឡើងដើម្បីឲ្យអ្នកអាចធ្វើការជាមួយនឹង **Docker** បានយ៉ាងងាយស្រួល។ ខាងក្រោមនេះគឺជាចំណុចធំៗដែលអ្នកត្រូវដឹងមុននឹងឈានដល់ការសិក្សាពី **Docker** ឲ្យស៊ីជម្រៅ:
+
+    - **Build**: ចាប់ផ្តើមដំបូងជាមួយនឹងការសរសេរកូដ បន្ទាប់មក `build` កូដទាំងអស់នោះទៅជា `image` របស់ ***Docker*** ហើយយក `image` នោះមកបង្កើតជាកម្មវិធី(container)ដែលអាចដំណើរការបានទាំង `window`, `mac`, និង `linux` ដោយមានប្រសិទ្ធភាព។ មួយវិញដើម្បីអាចបង្កើត `containers` ជាច្រើននៅក្នុងកម្មវិធីតែមួយបាន គឺអាចប្រើប្រាស់ **Docker Compose** បាន។
+
+    ![docker build thumbnail](/_thumbnail_doc/docker-build.jpg "Docker Build")
+
+    - **Share**: បន្ទាប់ពីអ្នកអាច `build` ជា `image` របស់ **Docker** រួចរាល់ ដូច្នេះបន្ទាប់អ្នកក៏អាច `publish` នូវ `image` ទៅកាន់ **Docker Hub repository** បាន ដើម្បីអាចឲ្យអ្នកអភិវឌ្ឍន៍កម្មវិធីដទៃទៀតអាចទាញយក `image` នោះយកទៅប្រើបន្តទៀតបាន។
+
+    ![docker share thumbnail](/_thumbnail_doc/docker-share.jpg "Docker Build")
+
+    - **Run**: បន្ទាប់ពីអ្នកអាច `build` នូវ `image` របស់ **Docker** និង `share image` ទៅកាន់ **Docker Hub repository** ហើយ បន្ទាប់ពីនេះអ្នកក៏អាចទាញយក `image` របស់អ្នកដទៃហើយយកមកបង្កើតជា `container` នឹងធ្វើការ `run` នូវ `container` នោះបាន។
+
+    ![docker run thumbnail](/_thumbnail_doc/docker-run.jpg "Docker Build")
+
+### Docker Architecture:
+
+![docker architecture thumbnail](/_thumbnail_doc/docker-architecture.png "Docker Architecture")
 
 - ដូចដែលអ្នកបានឃើញនៅក្នុង _Diagram_ ខាងលើចឹង ដែលបានពណ៍នាអំពី **Docker Architecture** ដែលក្នុងនោះគឺឃើញថាមានសមាសភាគសំខាន់ៗជាច្រើន ហើយក៏ឃើញពីសកម្មភាពនៃអ្នកប្រើប្រាស់ធ្វើការបញ្ជាទៅ _Docker Daemon_ តាមរយះ _Client_ ។ល។ តោះឥឡូវទៅមើលការសម្រាយដូចខាងក្រោម:
-    - **Docker** ប្រើប្រាស់ទម្រង់ _server-client-architecture_ ដែល **Client** ជា **Docker Client** គឺជាអ្នកប្រើប្រាស់ _Command Line Interface_ ដើម្បីបញ្ជា និងអ្នកដំណើរការ _server_ គឺ **Docker Daemon** ដែលវាដំណើរការនៅលើ _host_ ។
 
-    - នៅមានបន្តទៀត!!!
+  - **Docker** ប្រើប្រាស់ទម្រង់ _server-client-architecture_ ដែល **Client** ជា **Docker Client** គឺជាអ្នកប្រើប្រាស់ _Command Line Interface_ ដើម្បីបញ្ជា និងអ្នកដំណើរការ _server_ គឺ **Docker Daemon** ដែលវាដំណើរការនៅលើ _host_ ។
+
+  - នៅមានបន្តទៀត!!!
+
 ---
 
 ### Commands ពិសេសៗដែលត្រូវប្រើជាប្រចាំថ្ងៃ:
@@ -37,13 +57,13 @@ $ docker images ឬ​ $ docker image ls
 #### - <u>Running Container</u>:
 
 ```js
-$ docker run nginx:latest 
+$ docker run nginx:latest
 ```
 
 - ប្រើសម្រាប់ run container របស់ image ដែល nginx គឺជាឈ្មោះរបស់ image រីឯ latest ដែលនៅជាប់នោះគឺ​ version របស់ image ហើយត្រូវភ្ជាប់វាជាមួយនឹងសញ្ញា colon(:) នៅពីមុខ version ផង។
 
 ```js
-$ docker container ls ឬ $ docker ps 
+$ docker container ls ឬ $ docker ps
 ```
 
 - ប្រើសម្រាប់បង្ហាញនូវ container ទាំងអស់ដែលកំពុងត្រូវបាន run ។
@@ -69,7 +89,7 @@ $ docker run -d -p 9000:80 nginx:latest
 - ប្រើសម្រាប់ run container ជាលក្ខណះ detached mode ហើយមានការរួមបញ្ចូលជាមួយនឹងការបញ្ជាក់យ៉ាងច្បាស់ជាមួយនឹង expose port ដែលទុកប្រើសម្រាប់ដំណើរការកម្មវិធី nginx ហើយដើម្បីបញ្ជាក់ expose port បាន អ្នកត្រូវប្រើ -p flag ហើយបន្ទាប់គឺ port ដែលអ្នកចង់ដាក់ ហើយបន្ទាប់គឺសញ្ញា colon(:) ហើយបន្ទាប់គឺ port របស់ container នោះផ្ទាល់។
 
 ```js
-$ docker run -d -p 9000:80 -p 9010:80 nginx:latest 
+$ docker run -d -p 9000:80 -p 9010:80 nginx:latest
 ```
 
 - ប្រើសម្រាប់ run container ដូច command ខាងលើដែរ តែអ្នកអាចប្រើ multiple port បាន ពោលគឺអ្នកប្រើ port 9000 ក៏ដំណើរការជោគជ័យ ឬក៏ប្រើ port 9010 ក៏ដំណើរការជោគជ័យ។
@@ -150,7 +170,7 @@ $ export FORMAT="ID\t{{.ID}}\nNAME\t{{.Names}}\nImage\t{{.Image}}\nPORTS\t{{.Por
 
 - ប្រើសម្រាប់ export path variable នៅក្នុង local machine ដើម្បីងាយស្រួលហៅប្រើលើកក្រោយដោយមិនចាំបាច់សរសេរច្រើនបន្ថែមទៀត។
 
-```js 
+```js
 $ docker ps --format=$FORMAT
 ```
 
@@ -159,7 +179,7 @@ $ docker ps --format=$FORMAT
 #### - <u>Volumes</u>:
 
 ```js
-$ docker run --name cambodia-website -d -p 9000:80 -v /home/mengsreang/Desktop/cambodia-website:/usr/share/nginx/html nginx:latest    
+$ docker run --name cambodia-website -d -p 9000:80 -v /home/mengsreang/Desktop/cambodia-website:/usr/share/nginx/html nginx:latest
 ```
 
 - ប្រើសម្រាប់​ run container ដោយមានកំណត់ជាលក្ខណះ volumes ដែលធ្វើការភ្ជាប់ project ដែលមាននៅក្នុងកុំព្យូទ័ររបស់អ្នកទៅកាន់ server របស់ nginx ក្នុង docker ។​ សម្រាយបន្តិច: -v flag គឺតំណាងឲ្យ volumes រីឯ /home/mengsreang/Desktop/cambodia-website គឺជាទីតាំងរបស់ project របស់អ្នកនៅក្នុងកំព្យូទ័រ ហើយមួយទៀតគឺ /usr/share/nginx/html គឺជាទីតាំង project របស់ nginx server ហើយកុំភ្លេចដាក់សញ្ញា colon(:) នៅពីមុខផង។
@@ -168,7 +188,7 @@ $ docker run --name cambodia-website -d -p 9000:80 -v /home/mengsreang/Desktop/c
 $ docker exec -it cambodia-website bash
 ```
 
-- ប្រើសម្រាប់បង្កើត bash ដើម្បីចូលទៅមើល project នៅក្នុង nginx server ។​ សម្រាយបន្តិច exec គឺតំណាងឲ្យការ execute រីឯ -it គឺមានន័យថា execute bash ជាលក្ខណះ interative mode ។ 
+- ប្រើសម្រាប់បង្កើត bash ដើម្បីចូលទៅមើល project នៅក្នុង nginx server ។​ សម្រាយបន្តិច exec គឺតំណាងឲ្យការ execute រីឯ -it គឺមានន័យថា execute bash ជាលក្ខណះ interative mode ។
 
 #### - <u>Dockerfile</u>:
 
@@ -190,7 +210,7 @@ $ docker build -t cambodia-website-image:latest . ឬ​ $ docker build --tag ca
 - ប្រើសម្រាប់​ build image សម្រាប់ -t ឬ --tag គឺជា flag បញ្ជាក់ពី tag រីឯ cambodia-website-image:latest គឺជាឈ្មោះ image ថ្មីដែលអ្នកអាចដាក់ឈ្មោះអ្វីក៏បាន រីឯសញ្ញា <b>`.`</b> គឺចង់បញ្ជាក់ថា image មួយនឹង build ចេញពី project មួយនឹង។
 
 ```js
-$ docker run --name cambodia-website-2 -d -p 9010:80 cambodia-website-image:latest 
+$ docker run --name cambodia-website-2 -d -p 9010:80 cambodia-website-image:latest
 ```
 
 - ប្រើសម្រាប់ run container របស់ image ដែលអ្នកបានបង្កើតនៅមុននេះបន្តិច។
