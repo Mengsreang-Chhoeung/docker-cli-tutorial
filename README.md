@@ -32,3 +32,11 @@ Docker solves environment inconsistencies by packaging an application along with
 - **Docker Image**: A read-only blueprint or template containing application code, libraries, runtime, and environment variables. _(Think of it like a class in programming or a blueprint for a house)_.
 
 - **Docker Container**: A lightweight, runnable instance of an Image. _(Think of it like an object instantiated from a class or the actual built house)_.
+
+### 5. Real-World Use Cases
+
+- **Microservices**: Running multiple independent services (API, frontend, caching, database) isolated from each other.
+
+- **CI/CD Pipelines**: Running automated tests in reproducible, clean environments that spin up and destroy instantly.
+
+- **Local Development**: Running local instances of databases (e.g., PostgreSQL, Redis) without installing them directly onto your operating system.
