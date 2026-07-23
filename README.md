@@ -33,6 +33,14 @@ Docker solves environment inconsistencies by packaging an application along with
 
 - **Docker Container**: A lightweight, runnable instance of an Image. _(Think of it like an object instantiated from a class or the actual built house)_.
 
-### 5. Install Docker Desktop
+### 5. Real-World Use Cases
+
+- **Microservices**: Running multiple independent services (API, frontend, caching, database) isolated from each other.
+
+- **CI/CD Pipelines**: Running automated tests in reproducible, clean environments that spin up and destroy instantly.
+
+- **Local Development**: Running local instances of databases (e.g., PostgreSQL, Redis) without installing them directly onto your operating system.
+
+### 6. Install Docker Desktop
 
 Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for your operating system (Windows, Mac, or Linux).
