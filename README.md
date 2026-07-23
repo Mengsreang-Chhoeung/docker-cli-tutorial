@@ -17,3 +17,12 @@ Docker solves environment inconsistencies by packaging an application along with
 - **Portability**: If it runs in a Docker container on your machine, it will run identically on any server, cloud provider, or teammate's machine.
 
 - **Isolation**: Containers run in isolated environments on the host system, ensuring applications don't conflict with one another (e.g., running Node.js v16 and Node.js v20 side-by-side).
+
+### 3. Virtual Machines vs. Containers
+
+| Feature            | Virtual Machines (VMs)              | Docker Containers                          |
+| ------------------ | ----------------------------------- | ------------------------------------------ |
+| **Architecture**   | Includes full Guest OS + Hypervisor | **Shares Host OS Kernel**                  |
+| **Size**           | **Gigabytes (GBs)**                 | **Megabytes (MBs)**                        |
+| **Boot Time**      | **Minutes**                         | **Seconds or milliseconds**                |
+| **Resource Usage** | Heavy (CPU/RAM hardware allocation) | **Lightweight (uses resources on demand)** |
