@@ -40,3 +40,7 @@ Docker solves environment inconsistencies by packaging an application along with
 - **CI/CD Pipelines**: Running automated tests in reproducible, clean environments that spin up and destroy instantly.
 
 - **Local Development**: Running local instances of databases (e.g., PostgreSQL, Redis) without installing them directly onto your operating system.
+
+### 6. Install Docker Desktop
+
+Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for your operating system (Windows, Mac, or Linux).
