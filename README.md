@@ -44,3 +44,17 @@ Docker solves environment inconsistencies by packaging an application along with
 ### 6. Install Docker Desktop
 
 Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for your operating system (Windows, Mac, or Linux).
+
+### 7. Verify Installation
+
+Open your terminal or command prompt and verify the installation:
+
+```bash
+# Check Docker CLI version
+docker --version
+
+# Verify the Docker Engine is running by starting a test container
+docker run hello-world
+```
+
+If successful, Docker will download the `hello-world` image from Docker Hub and display a confirmation message indicating your installation is working properly.
