@@ -58,3 +58,38 @@ docker run hello-world
 ```
 
 If successful, Docker will download the `hello-world` image from Docker Hub and display a confirmation message indicating your installation is working properly.
+
+## Part 2: Docker Fundamentals
+
+### 1. Docker Architecture & Docker Engine
+
+Docker uses a client-server model. The command-line interface communicates with the background daemon through a REST API over a Unix socket or network interface.
+
+```
++-------------------------------------------------------------------+
+|                           DOCKER CLIENT                           |
+|                    (docker run, docker build, etc.)               |
++-------------------------------------------------------------------+
+                                  |
+                                  v  (REST API)
++-------------------------------------------------------------------+
+|                           DOCKER ENGINE                           |
+|  +-------------------------------------------------------------+  |
+|  | Daemon (dockerd)                                            |  |
+|  | - Listens for API requests                                  |  |
+|  | - Manages Images, Volumes, Networks                         |  |
+|  +-------------------------------------------------------------+  |
+|  | High-Level Runtime (containerd)                             |  |
+|  | - Handles image pulling, storage, container supervision     |  |
+|  +-------------------------------------------------------------+  |
+|  | Low-Level Runtime (runc)                                    |  |
+|  | - Interacts with Linux kernel (Namespaces & Cgroups)         |  |
+|  +-------------------------------------------------------------+  |
++-------------------------------------------------------------------+
+```
+
+- **Docker CLI (`docker`)**: The terminal tool you interact with to issue commands.
+
+- **Docker Daemon (`dockerd`)**: The primary host service that listens for API requests and manages Docker objects.
+
+- **containerd & runc**: The underlying container runtimes. `containerd` handles image management and lifecycle execution, while `runc` interacts directly with Linux kernel primitives (**Namespaces** for isolation and **Cgroups** for resource limits).
