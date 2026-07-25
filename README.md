@@ -333,3 +333,164 @@ docker image prune
 | **Stop container**         | `docker stop <name_or_id>`            |
 | **Delete container**       | `docker rm <name_or_id>`              |
 | **Delete image**           | `docker rmi <image_or_id>`            |
+
+## Part 4: Essential Docker Commands
+
+Mastering Docker comes down to understanding a core set of CLI commands. This reference guide breaks down the essential commands every developer needs for inspecting, executing, managing, and maintaining Docker containers and system resources.
+
+### 1. Inspection & Monitoring Commands
+
+- `docker ps`
+  Lists active and running containers on your system.
+
+  ```bash
+  # List only currently running containers
+  docker ps
+
+  # List all containers (running, stopped, and exited)
+  docker ps -a
+
+  # Show only container IDs (useful for scripts/automation)
+  docker ps -q
+  ```
+
+- `docker images`
+  Lists all Docker images stored locally on your machine.
+
+  ```bash
+  # View all local images with tags and sizes
+  docker images
+  ```
+
+- `docker logs`
+  Fetches stdout/stderr logs from a specific container. Critical for debugging background processes.
+
+  ```bash
+  # Fetch current logs
+  docker logs <container_name_or_id>
+
+  # Stream/follow logs in real-time
+  docker logs -f <container_name_or_id>
+
+  # View the last 50 log entries
+  docker logs --tail 50 <container_name_or_id>
+  ```
+
+- `docker inspect`
+  Returns detailed low-level internal configurations and metadata (IP address, volume mounts, network settings, environment variables) in JSON format.
+
+  ```bash
+  # Inspect complete container configuration
+  docker inspect <container_name_or_id>
+
+  # Extract specific metadata using formatting (e.g., retrieve IP address)
+  docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' <container_name>
+  ```
+
+### 2. Image Management Commands
+
+- `docker pull`
+  Downloads a Docker image from a remote registry (like Docker Hub) without instantiating a container.
+
+  ```bash
+  # Pull a specific image tag
+  docker pull postgres:16-alpine
+  ```
+
+- `docker rmi`
+  Removes one or more local Docker images from your system.
+
+  ```bash
+  # Remove an image by tag or ID
+  docker rmi postgres:16-alpine
+
+  # Force removal of an image in use by a stopped container
+  docker rmi -f <image_id>
+  ```
+
+### 3. Execution & Lifecycle Commands
+
+- `docker run`
+  Creates and starts a new container from an image. Combines `docker create` and `docker start`.
+
+  ```bash
+  # Common pattern: run detached (-d), named (--name), with port mapping (-p host:container)
+  docker run -d --name my-redis -p 6379:6379 redis:alpine
+  ```
+
+- `docker exec`
+  Executes a new command inside an already running container.
+
+  ```bash
+  # Open an interactive shell inside a running container
+  docker exec -it my-redis sh
+
+  # Run a single non-interactive command inside a container
+  docker exec my-redis redis-cli ping
+  ```
+
+- `docker stop`
+  Gracefully stops a running container by sending a `SIGTERM` signal, followed by `SIGKILL` if it doesn't stop within the timeout period.
+
+  ```bash
+  # Stop a running container
+  docker stop <container_name_or_id>
+  ```
+
+- `docker start`
+  Starts one or more stopped containers without re-creating them.
+
+  ```bash
+  # Restart a previously stopped container
+  docker start <container_name_or_id>
+  ```
+
+- `docker restart`
+  Stops and immediately restarts a running or stopped container.
+
+  ```bash
+  # Restart a container
+  docker restart <container_name_or_id>
+  ```
+
+- `docker rm`
+  Removes stopped containers from disk.
+
+  ```bash
+  # Remove a stopped container
+  docker rm <container_name_or_id>
+
+  # Force remove a currently running container (-f)
+  docker rm -f <container_name_or_id>
+  ```
+
+### 4. Maintenance & Garbage Collection
+
+- `docker system prune`
+  Frees up disk space by removing all stopped containers, unused networks, dangling images, and build caches in one command.
+
+  ```bash
+  # Clean up unused Docker resources
+  docker system prune
+
+  # Comprehensive deep clean (removes all unused images and persistent volumes)
+  docker system prune -a --volumes
+  ```
+
+### Command Summary Quick Reference
+
+| Command               | Purpose                              |
+| --------------------- | ------------------------------------ |
+| `docker ps`           | List containers                      |
+| `docker images`       | List local images                    |
+| `docker pull`         | Fetch an image from registry         |
+| `docker run`          | Create and start a container         |
+| `docker exec`         | Execute command in running container |
+| `docker logs`         | Print container logs                 |
+| `docker inspect`      | Output low-level JSON details        |
+| `docker stop`         | Gracefully stop container            |
+| `docker start`        | Start stopped container              |
+| `docker restart`      | Stop and restart container           |
+| `docker rm`           | Delete stopped container             |
+| `docker rmi`          | Delete local image                   |
+| `docker system prune` | Remove unused/dangling resources     |
