@@ -582,3 +582,144 @@ Large images take longer to download, consume unnecessary disk space, and increa
 - **Keep Images Minimal**: Exclude build tools, documentation, and source code from final production images.
 
 - **Scan Images for Vulnerabilities**: Periodically audit images using security scanners like `docker scout` or `trivy`.
+
+## Part 6: Dockerfile
+
+A **Dockerfile** is the foundational building block for creating custom Docker images. In this section, we'll break down what a Dockerfile is, explore essential instructions, contrast similar commands (like `COPY` vs `ADD` and `CMD` vs `ENTRYPOINT`), and demonstrate how to build and run custom images.
+
+### 1. What is a Dockerfile?
+
+A **Dockerfile** is a text document containing a sequential list of instructions that Docker executes to assemble a custom image. It automates the entire image creation process, ensuring builds are reproducible and version-controlled.
+
+### 2. Core Dockerfile Instructions
+
+- `FROM`
+  Sets the base image for subsequent instructions. Every valid Dockerfile must start with a `FROM` instruction.
+
+  ```dockerfile
+  FROM node:20-alpine
+  ```
+
+- `WORKDIR`
+  Sets the working directory inside the container for any subsequent `RUN`, `CMD`, `ENTRYPOINT`, `COPY`, or `ADD` instructions. If the directory doesn't exist, Docker creates it automatically.
+
+  ```dockerfile
+  WORKDIR /app
+  ```
+
+- `COPY` vs `ADD`
+  Both instructions transfer files from the `host machine` into the `container image`, but they have distinct differences:
+  - `COPY`: Copies local files and directories from the `build context` into the image. **(Recommended for almost all use cases)**.
+
+  - `ADD`: Includes extra features like auto-extracting local tar archives (`.tar.gz`) and fetching files directly from remote URLs.
+
+  ```dockerfile
+  # Standard file copy (Best Practice)
+  COPY package.json package-lock.json ./
+
+  # Auto-extracting a local tar archive
+  ADD archive.tar.gz /extracted-files/
+  ```
+
+- `RUN`
+  Executes commands during the build phase to install packages, create files, or set up dependencies. Each `RUN` instruction creates a new read-only image layer.
+
+  ```dockerfile
+  # Chain commands with && to reduce image layer count
+  RUN apt-get update && apt-get install -y \
+      curl \
+      git \
+      && rm -rf /var/lib/apt/lists/*
+  ```
+
+- `ENV` vs `ARG`
+  Both define variables during the image lifecycle, but they operate at different stages:
+
+  | Instruction | Scope           | Persistence              | Example Use Case                       |
+  | ----------- | --------------- | ------------------------ | -------------------------------------- |
+  | `ARG`       | Build time only | Not available in running | Passing version tags, build flags      |
+  | `ENV`       | Build time &    | Persists inside running  | Database host, application environment |
+
+  ```dockerfile
+  # Available only during 'docker build'
+  ARG BUILD_VERSION=1.0.0
+
+  # Persists in the container at runtime
+  ENV NODE_ENV=production
+  ENV PORT=3000
+  ```
+
+- `EXPOSE`
+  Informs Docker that the container listens on specific network ports at runtime. **Note**: `EXPOSE` acts as documentation between the image creator and user—it does not actually publish the port on the host.
+
+  ```dockerfile
+  EXPOSE 3000
+  ```
+
+- `CMD` vs `ENTRYPOINT`
+  Both specify the command executed when a container starts, but they behave differently when overridden:
+  - `CMD`: Sets default arguments or commands that can be **easily overridden** from the command line.
+  - `ENTRYPOINT`: Configures a container to run as an executable. Command-line arguments passed to `docker run` are appended to `ENTRYPOINT` rather than replacing it.
+
+  ```dockerfile
+  # CMD example: easily overridden by passing a command to 'docker run'
+  CMD ["node", "server.js"]
+
+  # ENTRYPOINT + CMD pattern: ENTRYPOINT sets fixed executable, CMD sets default argument
+  ENTRYPOINT ["node"]
+  CMD ["server.js"]
+  ```
+
+### 3. Putting It Together: Example Dockerfile
+
+Here is a complete, production-ready Dockerfile for a Node.js application:
+
+```dockerfile
+# 1. Base image
+FROM node:20-alpine
+
+# 2. Build-time argument and runtime environment
+ARG BUILD_DATE
+ENV NODE_ENV=production
+
+# 3. Set working directory
+WORKDIR /app
+
+# 4. Copy dependency definitions first (for layer caching)
+COPY package*.json ./
+
+# 5. Install dependencies
+RUN npm ci --only=production
+
+# 6. Copy application code
+COPY . .
+
+# 7. Document exposed port
+EXPOSE 3000
+
+# 8. Set default runtime command
+CMD ["npm", "start"]
+```
+
+### 4. Building and Running a Custom Image
+
+#### Build the Image (`docker build`)
+
+Use `docker build` with the `-t` (tag) flag to name your image, pointing to the build context directory (usually `.`):
+
+```bash
+# Build image tagged 'my-app:v1' using current directory context
+docker build -t my-app:v1 .
+
+# Build passing a build argument
+docker build --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') -t my-app:v1 .
+```
+
+#### Run the Custom Container (`docker run`)
+
+Instantiate a container from your newly built custom image:
+
+```bash
+# Run detached, map host port 8080 to container port 3000
+docker run -d --name my-running-app -p 8080:3000 my-app:v1
+```
