@@ -494,3 +494,91 @@ Mastering Docker comes down to understanding a core set of CLI commands. This re
 | `docker rm`           | Delete stopped container             |
 | `docker rmi`          | Delete local image                   |
 | `docker system prune` | Remove unused/dangling resources     |
+
+## Part 5: Docker Images
+
+Understanding Docker Images is fundamental to packaging applications efficiently. In this section, we'll dive deep into what images actually are under the hood, how layer caching works, how to manage image tagging effectively, and strategies for keeping image sizes small.
+
+### 1. What is an Image?
+
+A **Docker Image** is a lightweight, standalone, executable package that includes everything needed to run a piece of software: application code, runtime, system tools, libraries, and settings.
+
+Images are **immutable** (read-only) templates used to instantiate Docker containers. When a container runs, Docker adds a thin writable layer on top of the image layers.
+
+### 2. Image Layers & Caching
+
+Docker images are composed of stacked, read-only layers. Each instruction in a `Dockerfile` (e.g., `FROM`, `RUN`, `COPY`) creates a new layer.
+
+```
++-------------------------------------------------------+
+|  Writable Container Layer                             | <-- Added when container starts
++-------------------------------------------------------+
+|  Layer 4: CMD ["node", "server.js"]                   |
+|  Layer 3: COPY . .                                    |
+|  Layer 2: RUN npm install                             |
+|  Layer 1: FROM node:20-alpine                         |
++-------------------------------------------------------+
+```
+
+#### Layer Caching
+
+Docker reuses layers from previous builds if the instructions and files haven't changed.
+
+- **Cache Hits:** Unchanged steps are reused instantly, making builds fast.
+
+- **Cache Invalidation:** If a layer changes (e.g., updated source code in `COPY`), that layer and all subsequent layers are rebuilt from scratch.
+
+### 3. Image Tags
+
+Tags act as aliases or pointers to specific image versions. The full reference for an image follows this naming structure:
+
+```
+[registry_url]/[repository]/[image_name]:[tag]
+```
+
+Examples:
+
+- `postgres:16-alpine` (Official image from Docker Hub with specific version and OS variant)
+- `ghcr.io/my-org/my-app:v1.2.0` (Image stored on GitHub Container Registry)
+
+### 4. The `latest` Tag (and Why to Avoid It)
+
+If you pull or build an image without specifying a tag (e.g., `docker pull node`), Docker automatically appends `:latest`.
+
+> **Warning:** The `:latest` tag does not mean "the guaranteed newest release." It is simply a default label applied by image maintainers. Using `:latest` in production can lead to unexpected breakages because the underlying image version can change without notice.
+
+### 5. Pulling Specific Versions
+
+Always pin explicit version tags to ensure consistent, reproducible environments across development, testing, and production.
+
+```bash
+# Bad practice (unpredictable behavior over time)
+docker pull postgres
+
+# Good practice (explicit major version and minimal base OS)
+docker pull postgres:16-alpine
+```
+
+### 6. Image Size Optimization
+
+Large images take longer to download, consume unnecessary disk space, and increase the attack surface for security vulnerabilities.
+
+#### Key Optimization Strategies:
+
+1. **Use Minimal Base Images**: Choose minimal distributions like **Alpine Linux** (`alpine`) or slim images (`node:20-slim`) instead of full Linux distributions (`ubuntu`).
+
+2. **Combine `RUN` Commands**: Combine shell commands into a single `RUN` instruction to minimize the total layer count.
+
+3. **Utilize `.dockerignore`**: Exclude non-essential files (e.g., `.git`, `node_modules`, build logs) from the build context.
+
+4. **Leverage Multi-Stage Builds**: Build dependencies in a temporary stage and copy only compiled artifacts into a lightweight final runtime image.
+
+### 7. Best Practices Summary
+
+- **Pin Specific Version Tags**: Never rely on `:latest` in production deployment scripts.
+
+- **Order Dockerfile Instructions Wisely**: Place infrequently changed instructions (like dependency installations) before frequently changing instructions (like application source code copy) to maximize build caching.
+
+- **Keep Images Minimal**: Exclude build tools, documentation, and source code from final production images.
+
+- **Scan Images for Vulnerabilities**: Periodically audit images using security scanners like `docker scout` or `trivy`.
