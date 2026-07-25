@@ -128,3 +128,22 @@ Developer ------------>  DOCKER REGISTRY   ------------> Production / Teammate
 - **Docker Hub**: The default public registry hosted by Docker Inc., containing thousands of official, verified base images (e.g., `postgres`, `nginx`, `node`, `redis`).
 
 - **Private Registries**: Enterprise environments often host private registries on AWS ECR, GitHub Container Registry (GHCR), or Azure Container Registry (ACR) to secure proprietary application images.
+
+### 4. Persisting Data with Volumes
+
+By default, data inside a container is ephemeral—if the container is deleted, its writable layer and data disappear. Docker provides **Volumes** and **Bind Mounts** to persist data outside the container lifecycle.
+
+| Storage Type     | Managed By    | Path on Host                         | Primary Use Case                          |
+| ---------------- | ------------- | ------------------------------------ | ----------------------------------------- |
+| **Named Volume** | Docker Engine | Managed folder inside Docker storage | Databases, persistent state (Recommended) |
+| **Bind Mount**   | User          | Anywhere on the host filesystem      | Live development (hot reloading)          |
+
+```bash
+# Create and run a Postgres container with a named volume
+docker volume create postgres_data
+
+docker run -d \
+  --name my-db \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:16
+```
