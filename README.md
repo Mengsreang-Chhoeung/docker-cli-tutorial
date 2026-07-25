@@ -93,3 +93,24 @@ Docker uses a client-server model. The command-line interface communicates with 
 - **Docker Daemon (`dockerd`)**: The primary host service that listens for API requests and manages Docker objects.
 
 - **containerd & runc**: The underlying container runtimes. `containerd` handles image management and lifecycle execution, while `runc` interacts directly with Linux kernel primitives (**Namespaces** for isolation and **Cgroups** for resource limits).
+
+### 2. Images vs. Containers
+
+To understand Docker objects, think of an **Image** as a class definition and a **Container** as an active instance of that class.
+
+```
+Docker Image (Read-Only)               Docker Container (Runnable)
++----------------------------+          +----------------------------+
+|  Writable Container Layer  |          |  Writable Container Layer  | <-- (Added at runtime)
++----------------------------+          +----------------------------+
+|  App Code / Build Artifacts|          |  App Code / Build Artifacts|
++----------------------------+   ===>   +----------------------------+
+|  Node.js / Python Runtime  |          |  Node.js / Python Runtime  |
++----------------------------+          +----------------------------+
+|  Base OS (e.g., Ubuntu)    |          |  Base OS (e.g., Ubuntu)    |
++----------------------------+          +----------------------------+
+```
+
+- **Images (Read-Only)**: Immutable, layered blueprints consisting of a base OS layer, dependencies, and application code.
+
+- **Containers (Read-Write)**: Ephemeral execution environments. When a container starts, Docker adds a thin **Writable Layer** on top of the image stack using a unified filesystem (like OverlayFS).
