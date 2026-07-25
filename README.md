@@ -147,3 +147,22 @@ docker run -d \
   -v postgres_data:/var/lib/postgresql/data \
   postgres:16
 ```
+
+### 5. Docker Networks
+
+Containers run isolated from the host network by default. Docker uses network drivers to enable communication between containers and external resources.
+
+- **Bridge (Default)**: Creates a private internal network on the host. Containers on the same bridge network can communicate with each other using container names as hostnames.
+
+- **Host**: Removes network isolation between the container and the Docker host (the container shares the host's network interfaces directly).
+
+- **None**: Disables all networking for complete isolation.
+
+```bash
+# Create a custom bridge network
+docker network create app-net
+
+# Run containers on the same network so they can communicate
+docker run -d --name redis-cache --network app-net redis
+docker run -d --name web-api --network app-net -p 8080:8080 my-web-api
+```
