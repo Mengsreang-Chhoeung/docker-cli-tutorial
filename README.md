@@ -166,3 +166,34 @@ docker network create app-net
 docker run -d --name redis-cache --network app-net redis
 docker run -d --name web-api --network app-net -p 8080:8080 my-web-api
 ```
+
+### 6. Basic Docker Workflow
+
+The day-to-day developer workflow follows three core commands: **Build**, **Run**, and **Manage**.
+
+```
+[ Dockerfile ] --( docker build )--> [ Docker Image ] --( docker run )--> [ Active Container ]
+```
+
+#### Essential Commands Cheat Sheet
+
+```bash
+# 1. Pull an image from Docker Hub
+docker pull nginx:alpine
+
+# 2. Run a container in detached mode (-d) with port mapping (-p host:container)
+docker run -d --name web-server -p 80:80 nginx:alpine
+
+# 3. List running containers
+docker ps
+
+# 4. View container logs
+docker logs -f web-server
+
+# 5. Execute an interactive shell inside a running container
+docker exec -it web-server sh
+
+# 6. Stop and remove a container
+docker stop web-server
+docker rm web-server
+```
