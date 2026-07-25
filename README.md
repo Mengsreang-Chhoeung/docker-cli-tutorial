@@ -197,3 +197,139 @@ docker exec -it web-server sh
 docker stop web-server
 docker rm web-server
 ```
+
+## Part 3: Your First Container
+
+Now that we understand Docker's architecture and core concepts, it's time to get hands-on with CLI commands. In this section, you'll run your first containers, learn execution modes, and manage system resources.
+
+### 1. Run Hello World
+
+The classic entry point to verify your Docker installation and understand the default pull-and-run behavior:
+
+```bash
+docker run hello-world
+```
+
+#### What happens under the hood?
+
+- Docker checks if the `hello-world` image exists locally.
+
+- If not found, it automatically pulls the image from Docker Hub.
+
+- It creates a new container, executes the script inside, prints the output to your terminal, and then exits.
+
+### 2. Pull an Image Explicitly
+
+While `docker run` automatically pulls missing images, you can pre-fetch images using `docker pull`. This is useful when preparing deployment scripts or caching images ahead of time.
+
+```bash
+# Pull the official NGINX image without running it
+docker pull nginx:alpine
+
+# List locally downloaded images
+docker images
+```
+
+### 3. Run an Ubuntu Container & Interactive Mode
+
+By default, containers exit immediately if they don't have an active background process. To interact with an operating system container like Ubuntu, you must attach an interactive terminal session.
+
+```bash
+# Run Ubuntu with Interactive (-i) and TTY (-t) flags
+docker run -it ubuntu bash
+```
+
+- `-i` (Interactive): Keeps `STDIN` open so you can pass input commands.
+
+- `-t` (TTY): Allocates a pseudo-terminal, giving you a proper command prompt.
+
+Once inside, you are running commands inside the isolated Ubuntu container:
+
+```bash
+# Example commands inside the container
+root@a1b2c3d4e5f6:/# cat /etc/os-release
+root@a1b2c3d4e5f6:/# exit
+```
+
+### 4. Detached Mode (`-d`)
+
+For long-running services (like web servers or databases), you don't want the container attached to your current terminal session. **Detached mode** runs the container in the background.
+
+```bash
+# Run NGINX in detached mode
+docker run -d nginx
+
+# Check running containers
+docker ps
+```
+
+To view what's happening inside a detached container:
+
+```bash
+# View container logs (use -f to stream/follow logs)
+docker logs -f <CONTAINER_ID>
+```
+
+### 5. Naming Containers (`--name`)
+
+By default, Docker assigns random generated names (e.g., `focused_curie`, `eager_hopper`). Assigning explicit names makes managing containers significantly easier in scripts and CLI commands.
+
+```bash
+# Run a named NGINX container
+docker run -d --name my-web-server -p 8080:80 nginx
+
+# Stop and check status using the custom name
+docker stop my-web-server
+```
+
+### 6. Removing Containers
+
+When a container stops, it is not deleted automatically; it remains on disk in a stopped state.
+
+```bash
+# List all containers (including stopped ones)
+docker ps -a
+
+# Remove a specific stopped container
+docker rm my-web-server
+
+# Force remove a currently running container (-f)
+docker rm -f my-web-server
+
+# Clean up all stopped containers at once
+docker container prune
+```
+
+**Tip**: You can use the `--rm` flag with `docker run` to automatically remove a container as soon as it exits (great for temporary tasks or scripts):
+
+```bash
+docker run --rm ubuntu echo "Temporary task completed!"
+```
+
+### 7. Removing Images
+
+To free up disk space on your host machine, you can clean up unused base images.
+
+```bash
+# List all local images
+docker images
+
+# Remove an image by ID or Tag (must remove dependent containers first)
+docker rmi nginx:latest
+
+# Remove all unused/dangling images
+docker image prune
+```
+
+### Summary Cheat Sheet
+
+| Task                       | Command                               |
+| -------------------------- | ------------------------------------- |
+| **Pull image**             | `docker pull <image>`                 |
+| **Run interactively**      | `docker run -it <image> bash`         |
+| **Run in background**      | `docker run -d --name <name> <image>` |
+| **View active containers** | `docker ps`                           |
+| **View all containers**    | `docker ps -a`                        |
+| **Stop container**         | `docker stop <name_or_id>`            |
+| **Delete container**       | `docker rm <name_or_id>`              |
+| **Delete image**           | `docker rmi <image_or_id>`            |
