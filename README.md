@@ -723,3 +723,150 @@ Instantiate a container from your newly built custom image:
 # Run detached, map host port 8080 to container port 3000
 docker run -d --name my-running-app -p 8080:3000 my-app:v1
 ```
+
+## Part 7: Building a Node.js App
+
+Now that we understand Dockerfiles and core image commands, let's put theory into practice by containerizing a lightweight Node.js Express application from scratch.
+
+### 1. Create Express App
+
+Start by initializing a basic Express web application.
+
+Create `package.json`:
+
+```json
+{
+  "name": "docker-node-express",
+  "version": "1.0.0",
+  "description": "Express app containerized with Docker",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
+```
+
+Create `index.js`:
+
+```javascript
+const express = require("express");
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.json({
+    status: "success",
+    message: "Hello from inside the Docker container!",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "UP" });
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on http://0.0.0.0:${PORT}`);
+});
+```
+
+### 2. Dockerfile & `.dockerignore`
+
+Create a `.dockerignore` file in the project root to prevent copying local node modules and build artifacts into the build context:
+
+Create `.dockerignore`:
+
+```
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+```
+
+Create `Dockerfile`:
+
+```dockerfile
+# 1. Use lightweight LTS base image
+FROM node:20-alpine
+
+# 2. Set working directory
+WORKDIR /app
+
+# 3. Copy package definitions first to utilize layer caching
+COPY package*.json ./
+
+# 4. Install production dependencies
+RUN npm ci --only=production
+
+# 5. Copy remaining application code
+COPY . .
+
+# 6. Expose port 3000
+EXPOSE 3000
+
+# 7. Define entry point command
+CMD ["npm", "start"]
+```
+
+### 3. Build Image
+
+Build your Docker image and tag it as `express-app:v1`:
+
+```bash
+docker build -t express-app:v1 .
+```
+
+To verify the image was created:
+
+```bash
+docker images express-app:v1
+```
+
+### 4. Run Container
+
+Run the newly built container in detached mode (`-d`), mapping port `3000` on your host to port `3000` inside the container:
+
+```bash
+docker run -d \
+  --name my-express-container \
+  -p 3000:3000 \
+  express-app:v1
+```
+
+Verify it is running:
+
+```bash
+docker ps -f name=my-express-container
+```
+
+### 5. Test API
+
+You can test the containerized endpoint using `curl` or your browser:
+
+```bash
+# Test primary endpoint
+curl http://localhost:3000
+
+# Expected Response:
+# {"status":"success","message":"Hello from inside the Docker container!","timestamp":"..."}
+
+# Test health check endpoint
+curl http://localhost:3000/health
+
+# Expected Response:
+# {"status":"UP"}
+```
+
+### 6. Common Mistakes to Avoid
+
+- **Binding Express to `127.0.0.1` (localhost) instead of `0.0.0.0`**: Inside a container, `localhost` refers only to the container's internal loopback interface. If Express listens on `127.0.0.1`, external traffic forwarded by Docker won't reach it. Always bind to `0.0.0.0`.
+
+- **Forgetting `.dockerignore`**: Omitting `.dockerignore` causes your local `node_modules/` folder to overwrite container dependencies, which can lead to platform mismatch bugs (e.g., native binaries compiled on macOS failing on Linux Alpine).
+
+- **Copying code before running `npm install`**: Copying `COPY . .` before `RUN npm install` invalidates the layer cache on every single code edit, forcing `npm install` to re-run on every build.
+
+- **Running as root user**: By default, Docker containers run as `root`. For production environments, switch to a non-root user (e.g., adding `USER node` before `CMD` in your Dockerfile) to improve security.
