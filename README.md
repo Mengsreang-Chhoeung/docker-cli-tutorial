@@ -1,5 +1,58 @@
 # Docker CLI Tutorial
 
+## Table of Contents
+
+- [Part 1: What is Docker?](#part-1-what-is-docker)
+  - [1. The Problem Before Docker](#1-the-problem-before-docker)
+  - [2. What Docker Solves](#2-what-docker-solves)
+  - [3. Virtual Machines vs. Containers](#3-virtual-machines-vs-containers)
+  - [4. Core Concepts: Image vs. Container](#4-core-concepts-image-vs-container)
+  - [5. Real-World Use Cases](#5-real-world-use-cases)
+  - [6. Install Docker Desktop](#6-install-docker-desktop)
+  - [7. Verify Installation](#7-verify-installation)
+- [Part 2: Docker Fundamentals](#part-2-docker-fundamentals)
+  - [1. Docker Architecture & Docker Engine](#1-docker-architecture--docker-engine)
+  - [2. Images vs. Containers](#2-images-vs-containers)
+  - [3. Registries & Docker Hub](#3-registries--docker-hub)
+  - [4. Persisting Data with Volumes](#4-persisting-data-with-volumes)
+  - [5. Docker Networks](#5-docker-networks)
+  - [6. Basic Docker Workflow](#6-basic-docker-workflow)
+- [Part 3: Your First Container](#part-3-your-first-container)
+  - [1. Run Hello World](#1-run-hello-world)
+  - [2. Pull an Image Explicitly](#2-pull-an-image-explicitly)
+  - [3. Run an Ubuntu Container & Interactive Mode](#3-run-an-ubuntu-container--interactive-mode)
+  - [4. Detached Mode (`-d`)](#4-detached-mode--d)
+  - [5. Naming Containers (`--name`)](#5-naming-containers---name)
+  - [6. Removing Containers](#6-removing-containers)
+  - [7. Removing Images](#7-removing-images)
+- [Part 4: Essential Docker Commands](#part-4-essential-docker-commands)
+  - [1. Inspection & Monitoring Commands](#1-inspection--monitoring-commands)
+  - [2. Image Management Commands](#2-image-management-commands)
+  - [3. Execution & Lifecycle Commands](#3-execution--lifecycle-commands)
+  - [4. Maintenance & Garbage Collection](#4-maintenance--garbage-collection)
+- [Part 5: Docker Images](#part-5-docker-images)
+  - [1. What is an Image?](#1-what-is-an-image)
+  - [2. Image Layers & Caching](#2-image-layers--caching)
+  - [3. Image Tags](#3-image-tags)
+  - [4. The `latest` Tag (and Why to Avoid It)](#4-the-latest-tag-and-why-to-avoid-it)
+  - [5. Pulling Specific Versions](#5-pulling-specific-versions)
+  - [6. Image Size Optimization](#6-image-size-optimization)
+  - [7. Best Practices Summary](#7-best-practices-summary)
+- [Part 6: Dockerfile](#part-6-dockerfile)
+  - [1. What is a Dockerfile?](#1-what-is-a-dockerfile)
+  - [2. Core Dockerfile Instructions](#2-core-dockerfile-instructions)
+  - [3. Putting It Together: Example Dockerfile](#3-putting-it-together-example-dockerfile)
+  - [4. Building and Running a Custom Image](#4-building-and-running-a-custom-image)
+- [Part 7: Building a Node.js App](#part-7-building-a-nodejs-app)
+  - [1. Create Express App](#1-create-express-app)
+  - [2. Dockerfile & `.dockerignore`](#2-dockerfile--dockerignore)
+  - [3. Build Image](#3-build-image)
+  - [4. Run Container](#4-run-container)
+  - [5. Test API](#5-test-api)
+  - [6. Common Mistakes to Avoid](#6-common-mistakes-to-avoid)
+
+---
+
 ## Part 1: What is Docker?
 
 ### 1. The Problem Before Docker
