@@ -65,6 +65,8 @@ Before containerization, developers and operations teams frequently ran into the
 
 ### 2. What Docker Solves
 
+![What Docker Solves](./_thumbnail_doc/what-docker-solves.png)
+
 Docker solves environment inconsistencies by packaging an application along with **all of its dependencies, configurations, and libraries** into a standardized unit called a **container**.
 
 - **Portability**: If it runs in a Docker container on your machine, it will run identically on any server, cloud provider, or teammate's machine.
