@@ -84,6 +84,8 @@ Docker solves environment inconsistencies by packaging an application along with
 
 ### 4. Core Concepts: Image vs. Container
 
+![Image vs Container](./_thumbnail_doc/image-vs-container.png)
+
 - **Docker Image**: A read-only blueprint or template containing application code, libraries, runtime, and environment variables. _(Think of it like a class in programming or a blueprint for a house)_.
 
 - **Docker Container**: A lightweight, runnable instance of an Image. _(Think of it like an object instantiated from a class or the actual built house)_.
