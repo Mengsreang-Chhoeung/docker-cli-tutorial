@@ -134,18 +134,7 @@ Docker uses a client-server model. The command-line interface communicates with 
 
 To understand Docker objects, think of an **Image** as a class definition and a **Container** as an active instance of that class.
 
-```
-Docker Image (Read-Only)               Docker Container (Runnable)
-+----------------------------+          +----------------------------+
-|  Writable Container Layer  |          |  Writable Container Layer  | <-- (Added at runtime)
-+----------------------------+          +----------------------------+
-|  App Code / Build Artifacts|          |  App Code / Build Artifacts|
-+----------------------------+   ===>   +----------------------------+
-|  Node.js / Python Runtime  |          |  Node.js / Python Runtime  |
-+----------------------------+          +----------------------------+
-|  Base OS (e.g., Ubuntu)    |          |  Base OS (e.g., Ubuntu)    |
-+----------------------------+          +----------------------------+
-```
+![Image vs Container](./_thumbnail_doc/image-vs-container-2.png)
 
 - **Images (Read-Only)**: Immutable, layered blueprints consisting of a base OS layer, dependencies, and application code.
 
