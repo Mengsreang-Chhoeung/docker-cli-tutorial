@@ -122,28 +122,7 @@ If successful, Docker will download the `hello-world` image from Docker Hub and 
 
 Docker uses a client-server model. The command-line interface communicates with the background daemon through a REST API over a Unix socket or network interface.
 
-```
-+-------------------------------------------------------------------+
-|                           DOCKER CLIENT                           |
-|                    (docker run, docker build, etc.)               |
-+-------------------------------------------------------------------+
-                                  |
-                                  v  (REST API)
-+-------------------------------------------------------------------+
-|                           DOCKER ENGINE                           |
-|  +-------------------------------------------------------------+  |
-|  | Daemon (dockerd)                                            |  |
-|  | - Listens for API requests                                  |  |
-|  | - Manages Images, Volumes, Networks                         |  |
-|  +-------------------------------------------------------------+  |
-|  | High-Level Runtime (containerd)                             |  |
-|  | - Handles image pulling, storage, container supervision     |  |
-|  +-------------------------------------------------------------+  |
-|  | Low-Level Runtime (runc)                                    |  |
-|  | - Interacts with Linux kernel (Namespaces & Cgroups)         |  |
-|  +-------------------------------------------------------------+  |
-+-------------------------------------------------------------------+
-```
+![Docker Architecture & Docker Engine](./_thumbnail_doc/docker-architecture-docker-engine.png)
 
 - **Docker CLI (`docker`)**: The terminal tool you interact with to issue commands.
 
