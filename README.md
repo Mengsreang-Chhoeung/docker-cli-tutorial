@@ -343,7 +343,7 @@ docker images
 docker rmi nginx:latest
 
 # Remove all unused/dangling images
-docker image prune
+docker image prune -a
 ```
 
 ### Summary Cheat Sheet
