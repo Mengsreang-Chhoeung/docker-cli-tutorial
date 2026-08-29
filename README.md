@@ -98,6 +98,14 @@
   - [5. Initializing Databases](#5-initializing-databases)
   - [6. Import/Export Data](#6-importexport-data)
   - [7. Persistent Storage](#7-persistent-storage)
+- [Part 14: Docker Logs & Debugging](#part-14-docker-logs--debugging)
+  - [1. `docker logs`](#1-docker-logs)
+  - [2. `docker exec`](#2-docker-exec)
+  - [3. `docker inspect`](#3-docker-inspect)
+  - [4. `docker stats`](#4-docker-stats)
+  - [5. `docker top`](#5-docker-top)
+  - [6. Common Errors](#6-common-errors)
+  - [7. Debugging Workflow](#7-debugging-workflow)
 
 ---
 
@@ -1953,3 +1961,150 @@ volumes:
 | **MySQL dump/restore**       | `mysqldump` / `mysql`                                       |
 | **MongoDB dump/restore**     | `mongodump` / `mongorestore`                                |
 | **Redis snapshot**           | `redis-cli SAVE` (writes `dump.rdb`)                         |
+
+## Part 14: Docker Logs & Debugging
+
+Containers fail. Applications crash, ports conflict, and databases refuse connections. This section builds a toolkit for inspecting a running (or crashed) container's output, resource usage, and internal state, and puts it all together into a repeatable debugging workflow.
+
+### 1. `docker logs`
+
+Fetches everything a container has written to `stdout`/`stderr`—almost always the first place to look when something goes wrong.
+
+```bash
+# View all logs collected so far
+docker logs my-api
+
+# Stream/follow logs in real-time
+docker logs -f my-api
+
+# Show only the last 100 lines
+docker logs --tail 100 my-api
+
+# Show logs with timestamps
+docker logs -t my-api
+
+# Show logs since a relative time or timestamp
+docker logs --since 10m my-api
+docker logs --since 2026-08-29T00:00:00 my-api
+```
+
+### 2. `docker exec`
+
+Runs a new command inside an **already-running** container—the go-to tool for poking around a live container's filesystem, environment, and processes.
+
+```bash
+# Open an interactive shell inside a running container
+docker exec -it my-api sh
+
+# Check environment variables actually seen by the process
+docker exec my-api env
+
+# Check network connectivity from inside the container
+docker exec my-api ping -c 3 db
+
+# Check what's listening on a port inside the container
+docker exec my-api netstat -tulpn
+```
+
+> **Note**: `docker exec` only works on a **running** container. If the container keeps crashing/exiting, use `docker logs` and `docker inspect` instead (see below), or temporarily override its command—e.g. `docker run -it --entrypoint sh my-api`—to get a shell without the normal startup process running.
+
+### 3. `docker inspect`
+
+Returns the complete low-level configuration and runtime state of a container (or image, volume, network) as JSON—useful for confirming exactly what Docker actually did versus what you intended.
+
+```bash
+# Full JSON dump of a container's configuration
+docker inspect my-api
+
+# Extract just the exit code of a stopped container
+docker inspect -f '{{.State.ExitCode}}' my-api
+
+# Extract just the restart count
+docker inspect -f '{{.RestartCount}}' my-api
+
+# Extract the container's IP address on a given network
+docker inspect -f '{{.NetworkSettings.Networks.app_net.IPAddress}}' my-api
+
+# Extract mounted volumes
+docker inspect -f '{{json .Mounts}}' my-api
+```
+
+### 4. `docker stats`
+
+Streams a live view of CPU, memory, network I/O, and block I/O usage per container—essential for spotting a runaway process or a memory leak.
+
+```bash
+# Live resource usage for all running containers
+docker stats
+
+# Live resource usage for specific containers
+docker stats my-api db
+
+# One-shot (non-streaming) snapshot, useful in scripts
+docker stats --no-stream
+```
+
+### 5. `docker top`
+
+Lists the actual OS processes running **inside** a container, similar to running `ps` on the host but scoped to that container's namespace.
+
+```bash
+# List processes running inside a container
+docker top my-api
+
+# Equivalent to passing ps-style flags
+docker top my-api aux
+```
+
+Useful for confirming a process didn't fork into an unexpected number of children, or that the process you expect (e.g. `node`, `nginx`) is actually the one running as PID 1.
+
+### 6. Common Errors
+
+- **`Bind for 0.0.0.0:3000 failed: port is already allocated`**: Another container or host process is already using that port. Find and stop it, or map to a different host port with `-p 3001:3000`.
+
+  ```bash
+  # Find what's using a port on the host
+  lsof -i :3000
+  ```
+
+- **`Cannot connect to the Docker daemon`**: Docker Desktop (or the daemon) isn't running. Start Docker Desktop, or on Linux, `sudo systemctl start docker`.
+
+- **Container exits immediately (`Exited (0)` or `Exited (1)`)**: The main process finished or crashed right away—usually a missing `CMD`/`ENTRYPOINT` for a long-running process, or an uncaught startup error. Check `docker logs <container>` first.
+
+- **`OOMKilled: true`** (visible in `docker inspect`): The container exceeded its memory limit and was killed by the kernel. Either raise the memory limit (`--memory`) or fix a memory leak in the application.
+
+- **`Error response from daemon: No such container`**: The container name/ID is wrong, or it was already removed. Double-check with `docker ps -a`.
+
+- **Database connection refused from another container**: Usually a networking issue—confirm both containers are on the **same** custom network (recap: [Part 9](#4-custom-network)) and that you're connecting by **service/container name**, not `localhost`.
+
+### 7. Debugging Workflow
+
+A repeatable sequence for diagnosing a misbehaving container, roughly in order of how quickly each step surfaces useful information:
+
+1. **Check status first**: `docker ps -a` — is the container running, restarting, or exited? Note the exit code.
+
+2. **Read the logs**: `docker logs --tail 100 -f <container>` — the application almost always tells you what went wrong here.
+
+3. **Inspect the configuration**: `docker inspect <container>` — confirm environment variables, mounted volumes, and network attachment match what you expect.
+
+4. **Check resource usage**: `docker stats <container>` — ruling out CPU throttling or memory exhaustion (`OOMKilled`).
+
+5. **Get a shell and reproduce manually**: `docker exec -it <container> sh` — run the failing command by hand inside the container's actual environment.
+
+6. **Check network reachability**: from inside the container, `ping`/`curl` the dependency it's failing to reach (recap: [Part 9, section 6](#6-dns-inside-docker) for DNS-by-name issues).
+
+7. **If the container won't even start**, override the entrypoint to get a shell instead: `docker run -it --entrypoint sh <image>`, then manually run the normal startup command to see exactly where it fails.
+
+### Summary Cheat Sheet
+
+| Task                              | Command                                       |
+| ----------------------------------- | ------------------------------------------------ |
+| **Follow logs**                    | `docker logs -f <container>`                  |
+| **Logs since a time**              | `docker logs --since 10m <container>`         |
+| **Shell into a running container** | `docker exec -it <container> sh`              |
+| **Full config/state dump**         | `docker inspect <container>`                  |
+| **Extract one field**              | `docker inspect -f '{{.State.ExitCode}}' ...`  |
+| **Live resource usage**            | `docker stats`                                |
+| **One-shot resource snapshot**     | `docker stats --no-stream`                    |
+| **Processes inside a container**   | `docker top <container>`                      |
+| **Override entrypoint to debug**   | `docker run -it --entrypoint sh <image>`      |
