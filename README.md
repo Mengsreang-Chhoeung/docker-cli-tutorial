@@ -84,6 +84,12 @@
   - [7. Dependencies (Startup Order)](#7-dependencies-startup-order)
   - [8. Persistent Data](#8-persistent-data)
   - [9. Run It](#9-run-it)
+- [Part 12: Environment Variables](#part-12-environment-variables)
+  - [1. `.env` Files](#1-env-files)
+  - [2. Passing Variables](#2-passing-variables)
+  - [3. Secrets](#3-secrets)
+  - [4. Best Practices](#4-best-practices)
+  - [5. Different Environments](#5-different-environments)
 
 ---
 
@@ -1582,3 +1588,167 @@ docker compose up --build
 # Tear down (add -v to also delete the Postgres/Redis volumes)
 docker compose down
 ```
+
+## Part 12: Environment Variables
+
+Every example so far has touched environment variables in passing—`ENV` in a Dockerfile ([Part 6](#part-6-dockerfile)), `environment:` in Compose ([Part 10](#6-environment-variables)), `DB_HOST`/`REDIS_HOST` in the multi-container project ([Part 11](#6-environment-variables-1)). This section takes a closer look at how to manage them properly: loading `.env` files, passing variables at runtime, handling secrets safely, and configuring different environments.
+
+### 1. `.env` Files
+
+A `.env` file stores key-value pairs outside your code and Dockerfiles, so configuration can change without rebuilding an image.
+
+```bash
+# .env
+DB_HOST=db
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=app_db
+```
+
+```bash
+# Load a .env file into a single container at runtime
+docker run --env-file .env my-api:v1
+```
+
+`docker compose` automatically loads a `.env` file from the project root (no flag needed) and uses it in two ways:
+
+- To substitute `${VARIABLE}` placeholders inside `docker-compose.yml` itself.
+- To populate a service's `environment:` block, as seen throughout [Part 11](#6-environment-variables-1).
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+```
+
+### 2. Passing Variables
+
+Beyond `.env` files, variables can be passed directly at the command line—useful for one-off overrides or CI pipelines.
+
+```bash
+# Pass a single variable with -e
+docker run -e NODE_ENV=production -e PORT=3000 my-api:v1
+
+# Pass multiple variables
+docker run \
+  -e DB_HOST=db \
+  -e DB_PORT=5432 \
+  my-api:v1
+
+# Forward a variable already set in your shell (no value needed)
+export API_KEY=abc123
+docker run -e API_KEY my-api:v1
+```
+
+In Compose, the same `environment:` key accepts either a map or a list, and can reference shell/`.env` variables directly:
+
+```yaml
+services:
+  api:
+    image: my-api:v1
+    environment:
+      - NODE_ENV=production
+      - API_KEY=${API_KEY}
+```
+
+Precedence (highest to lowest) when the same variable is set multiple ways: shell environment > `-e`/`environment:` in the Compose file > `.env` file > Dockerfile `ENV` default.
+
+### 3. Secrets
+
+Passwords, API keys, and tokens need extra care—`.env` files and `-e` flags are visible in `docker inspect`, shell history, and process listings, which is acceptable for local development but **not** for production secrets.
+
+- **Never bake secrets into an image**: A value passed as a Dockerfile `ARG` or `RUN echo $SECRET > file` is permanently embedded in the image's build history/layers, retrievable by anyone with the image—even after removing the file in a later layer.
+
+  ```dockerfile
+  # BAD: secret leaks into image layer history
+  ARG DB_PASSWORD
+  RUN echo "$DB_PASSWORD" >> /app/config
+
+  # BETTER: inject at runtime instead, never at build time
+  ```
+
+- **`.gitignore` your `.env` files**: Commit a `.env.example` with placeholder values (as done in [`multi-container-project/.env.example`](./multi-container-project/.env.example)) and add `.env` to `.gitignore`—never commit real credentials.
+
+- **Docker Secrets (Swarm/Compose)**: For a more secure mechanism than plain environment variables, Docker can mount a secret as a file inside the container instead of exposing it as an env var:
+
+  ```yaml
+  services:
+    db:
+      image: postgres:16-alpine
+      secrets:
+        - db_password
+      environment:
+        POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+
+  secrets:
+    db_password:
+      file: ./secrets/db_password.txt
+  ```
+
+  The application reads the secret from the file path at `/run/secrets/db_password` rather than from an environment variable. (Full coverage of Docker Secrets at scale is in the [Bonus Topics](#bonus-topics).)
+
+- **Use a secrets manager in production**: Tools like AWS Secrets Manager, HashiCorp Vault, or Doppler inject secrets at deploy time rather than storing them in any file at all.
+
+### 4. Best Practices
+
+- **Keep `.env` out of version control**: Add `.env` to `.gitignore`; commit only `.env.example` with dummy/placeholder values.
+
+- **Provide sensible defaults for non-secret config**: Use Compose's `${VAR:-default}` syntax (as in `multi-container-project/docker-compose.yml`) so the project runs out of the box, while still being overridable.
+
+- **Validate required variables at startup**: Fail fast with a clear error if a required variable is missing, rather than letting the app crash later with a confusing error deep in the code.
+
+- **Never log environment variables**: Avoid `console.log(process.env)` or similar in production code paths—logs are often less protected than the secrets store itself.
+
+- **Scope variables narrowly**: Only pass the variables a given service actually needs; don't share one giant `.env` across unrelated services.
+
+### 5. Different Environments
+
+Most projects need different configuration for local development, staging, and production. Two common approaches:
+
+**Multiple `.env` files, selected explicitly:**
+
+```bash
+# .env.development, .env.staging, .env.production
+
+# Point Compose at a specific file with --env-file
+docker compose --env-file .env.production up -d
+```
+
+**Compose override files**, layered on top of a base `docker-compose.yml`:
+
+```yaml
+# docker-compose.override.yml (merged automatically in local dev)
+services:
+  api:
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./api:/app # bind mount for hot reloading, dev only
+```
+
+```bash
+# Local dev: docker-compose.yml + docker-compose.override.yml (automatic)
+docker compose up
+
+# Production: explicitly select only the production file
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+- **Development**: favors Bind Mounts, verbose logging, and hot reloading.
+- **Staging**: mirrors production configuration as closely as possible, often with a smaller resource footprint.
+- **Production**: pinned image tags (never `:latest`, recap: [Part 5](#4-the-latest-tag-and-why-to-avoid-it)), secrets from a secrets manager (not `.env`), and no bind mounts or dev tooling.
+
+### Summary Cheat Sheet
+
+| Task                                | Command / Syntax                              |
+| ------------------------------------ | ----------------------------------------------- |
+| **Load `.env` into a container**     | `docker run --env-file .env <image>`          |
+| **Pass a single variable**           | `docker run -e KEY=value <image>`             |
+| **Forward a shell variable**         | `docker run -e KEY <image>`                   |
+| **Compose: variable substitution**   | `${VARIABLE}` / `${VARIABLE:-default}`        |
+| **Compose: select a specific file**  | `docker compose --env-file .env.production up`|
+| **Compose: layer override files**    | `docker compose -f base.yml -f prod.yml up`   |
+| **Mount a Docker Secret as a file**  | `secrets:` + `_FILE` env var convention       |
