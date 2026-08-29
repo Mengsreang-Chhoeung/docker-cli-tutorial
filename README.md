@@ -65,6 +65,15 @@
   - [4. Custom Network](#4-custom-network)
   - [5. Connect Multiple Containers](#5-connect-multiple-containers)
   - [6. DNS Inside Docker](#6-dns-inside-docker)
+- [Part 10: Docker Compose](#part-10-docker-compose)
+  - [1. Why Compose?](#1-why-compose)
+  - [2. `docker-compose.yml`](#2-docker-composeyml)
+  - [3. Services](#3-services)
+  - [4. Networks](#4-networks)
+  - [5. Volumes](#5-volumes)
+  - [6. Environment Variables](#6-environment-variables)
+  - [7. Build Multiple Services](#7-build-multiple-services)
+  - [8. Start Everything with One Command](#8-start-everything-with-one-command)
 
 ---
 
@@ -1181,3 +1190,206 @@ docker exec -it web-api getent hosts redis-cache
 | **Disconnect container**       | `docker network disconnect <network> <container>`    |
 | **Run with no networking**     | `docker run --network none ...`                      |
 | **Run with host networking**   | `docker run --network host ...`                      |
+
+## Part 10: Docker Compose
+
+Real applications rarely run as a single container—they're made up of a web server, an API, a database, a cache, and more. Manually running each with `docker run` and wiring up networks and volumes by hand doesn't scale. **Docker Compose** solves this by letting you define a whole multi-container application declaratively in one file.
+
+### 1. Why Compose?
+
+Compose replaces long sequences of `docker network create`, `docker volume create`, and `docker run` commands with a single declarative YAML file and a single command.
+
+- **Declarative**: The entire application stack (services, networks, volumes, environment variables) is described in one version-controlled file instead of scattered shell commands.
+
+- **Reproducible**: Anyone on the team can spin up the exact same multi-container environment with one command.
+
+- **Automatic networking**: Compose creates a dedicated network for your project by default, and every service can reach every other service by its service name (same DNS resolution as a custom network from [Part 9](#part-9-docker-networking)).
+
+### 2. `docker-compose.yml`
+
+A Compose file is a YAML document, conventionally named `docker-compose.yml`, placed at the root of your project. It defines `services`, and optionally `networks` and `volumes`.
+
+```yaml
+# docker-compose.yml
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+```
+
+```bash
+# Start the stack defined in docker-compose.yml (in the current directory)
+docker compose up
+
+# Stop and remove containers, networks created by "up"
+docker compose down
+```
+
+> **Note**: Modern Docker ships Compose as a CLI plugin (`docker compose`, no hyphen). The older standalone `docker-compose` binary still works the same way but is being phased out.
+
+### 3. Services
+
+Each entry under `services` describes one container—its image (or build instructions), ports, dependencies, and configuration. `depends_on` controls startup order between services.
+
+```yaml
+services:
+  api:
+    image: my-api:v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: secret
+```
+
+- **`depends_on`** controls **start order** only—it does not wait for the database to be ready to accept connections. For true readiness checks, pair it with a `healthcheck` (covered in [Part 18: Docker Compose in Production](#part-18-docker-compose-in-production)).
+
+### 4. Networks
+
+By default, Compose creates a single project-scoped bridge network and attaches every service to it automatically—no manual `docker network create` needed. Services reach each other using their service name as the hostname.
+
+```yaml
+services:
+  api:
+    image: my-api:v1
+    networks:
+      - backend
+
+  db:
+    image: postgres:16-alpine
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+```
+
+Inside the `api` container, connecting to `db:5432` resolves automatically to the database container's internal IP.
+
+### 5. Volumes
+
+Named volumes can be declared once at the top level under `volumes` and then referenced by any service, giving you the same data-persistence benefits covered in [Part 8](#part-8-docker-volumes).
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+```bash
+# List volumes created by Compose (prefixed with the project name)
+docker volume ls
+```
+
+### 6. Environment Variables
+
+Services can receive configuration through `environment` (inline key/value pairs) or `env_file` (load from a `.env`-style file), keeping secrets and per-environment config out of the image itself.
+
+```yaml
+services:
+  api:
+    image: my-api:v1
+    environment:
+      NODE_ENV: production
+      DB_HOST: db
+    env_file:
+      - .env
+```
+
+Compose also automatically reads a `.env` file in the project root to substitute `${VARIABLE}` placeholders directly inside `docker-compose.yml` itself:
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+```
+
+(Full coverage of `.env` files and secrets management is in [Part 12: Environment Variables](#part-12-environment-variables).)
+
+### 7. Build Multiple Services
+
+Instead of `image`, a service can use `build` to build a custom image from a local `Dockerfile`—Compose builds each service's image and wires them together in one step.
+
+```yaml
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+
+  api:
+    build: ./api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+```bash
+# Build (or rebuild) images for all services that define "build"
+docker compose build
+
+# Force a rebuild without using the layer cache
+docker compose build --no-cache
+```
+
+### 8. Start Everything with One Command
+
+`docker compose up` builds (if needed), creates the network and volumes, and starts every service in dependency order—all from one command.
+
+```bash
+# Build images and start all services in the foreground
+docker compose up --build
+
+# Start all services in detached mode
+docker compose up -d
+
+# View aggregated logs from all services
+docker compose logs -f
+
+# List running services for this project
+docker compose ps
+
+# Stop all services without removing containers/networks
+docker compose stop
+
+# Stop and remove containers, networks (add -v to also remove volumes)
+docker compose down -v
+```
+
+### Summary Cheat Sheet
+
+| Task                              | Command                              |
+| ---------------------------------- | ------------------------------------- |
+| **Start stack (foreground)**       | `docker compose up`                  |
+| **Start stack (detached)**         | `docker compose up -d`               |
+| **Build images**                   | `docker compose build`               |
+| **Build and start**                | `docker compose up --build`          |
+| **List running services**          | `docker compose ps`                  |
+| **View logs**                      | `docker compose logs -f`             |
+| **Stop services**                  | `docker compose stop`                |
+| **Stop and remove everything**     | `docker compose down`                |
+| **Stop and remove incl. volumes**  | `docker compose down -v`             |
