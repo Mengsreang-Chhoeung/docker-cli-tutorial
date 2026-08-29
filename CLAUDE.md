@@ -8,7 +8,7 @@ This is a Docker CLI tutorial series written for Khmer-speaking web developers, 
 
 ## Structure
 
-- `README.md` — the canonical tutorial content, organized into numbered "Part N: Title" sections (currently Parts 1–12 of a planned 20-part series plus bonus topics). Each part has a matching Table of Contents entry with an anchor link at the top of the file. This is the file that gets updated for new parts/issues.
+- `README.md` — the canonical tutorial content, organized into numbered "Part N: Title" sections (currently Parts 1–13 of a planned 20-part series plus bonus topics). Each part has a matching Table of Contents entry with an anchor link at the top of the file. This is the file that gets updated for new parts/issues.
 - `README_KM.md` — an older, unstructured Khmer-language draft that predates the Part-based series and is **not** kept in sync with `README.md` (it has no "Part N" sections at all). Past PRs for new parts (e.g. Part 7) only touch `README.md`; don't assume changes need mirroring here unless explicitly asked.
 - `_thumbnail_doc/` — PNG/JPG images embedded in the README via relative paths (e.g. `![...](./_thumbnail_doc/what-docker-solves.png)`). Image filenames are referenced directly in the markdown, so renaming an image requires updating both READMEs.
 - `api/` — the Express app built in "Part 7: Building a Node.js App". Minimal Node/Express app (`app.js`) with its own `Dockerfile`, `.dockerignore`, `package.json`. Used purely as tutorial example code walked through in the README, not a maintained service.
