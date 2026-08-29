@@ -133,6 +133,14 @@
   - [3. Health Checks](#3-health-checks)
   - [4. Logging](#4-logging)
   - [5. Environment Management](#5-environment-management)
+- [Part 19: Docker Best Practices](#part-19-docker-best-practices)
+  - [1. Folder Structure](#1-folder-structure)
+  - [2. Naming Convention](#2-naming-convention)
+  - [3. Security](#3-security)
+  - [4. Non-Root Users](#4-non-root-users)
+  - [5. Image Versioning](#5-image-versioning)
+  - [6. Resource Limits](#6-resource-limits)
+  - [7. Cleanup Strategy](#7-cleanup-strategy)
 
 ---
 
@@ -2715,3 +2723,171 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 | **Check live health status**              | `docker compose ps`                                           |
 | **Cap log file size/rotation**            | `logging: { driver: json-file, options: { max-size, max-file } }` |
 | **Deploy with a specific env file**       | `docker compose --env-file .env.production up -d`            |
+
+## Part 19: Docker Best Practices
+
+Parts 1–18 introduced each Docker practice as it came up—layer caching here, non-root users there. This section pulls them together into one consolidated checklist covering how to organize a project, name things consistently, and keep images secure, bounded, and clean.
+
+### 1. Folder Structure
+
+A predictable layout makes a multi-service project (recap: [Part 11](#part-11-multi-container-project)) easy to navigate for anyone joining it cold:
+
+```
+project-root/
+├── docker-compose.yml          # local development
+├── docker-compose.prod.yml     # production overrides (Part 18)
+├── .env.example                # committed template, never real secrets
+├── .dockerignore
+├── frontend/
+│   ├── Dockerfile
+│   ├── Dockerfile.prod
+│   └── src/
+└── backend/
+    ├── Dockerfile
+    ├── Dockerfile.prod
+    └── src/
+```
+
+- Keep each service's `Dockerfile` **inside that service's own directory**, not centralized—it keeps build context minimal and mirrors how `context:`/`build:` is scoped per service in Compose.
+- A dev `Dockerfile` and a `Dockerfile.prod` living side by side (as in [`multi-container-project`](./multi-container-project)) makes the dev/production split explicit rather than buried in conditionals.
+
+### 2. Naming Convention
+
+Consistent names make `docker ps`, logs, and Compose output scannable at a glance instead of a wall of random hashes.
+
+| What              | Convention                          | Example                          |
+| ------------------ | -------------------------------------- | ----------------------------------- |
+| **Container name** | `<project>-<service>`                | `myapp-backend`, `myapp-db`        |
+| **Image tag**       | `<namespace>/<repo>:<semver>`        | `mengsreang/myapp-backend:1.4.0`   |
+| **Compose service** | lowercase, singular, role-based      | `backend`, `db`, `redis`, not `db1`|
+| **Volume name**     | `<project>_<purpose>_data`           | `myapp_postgres_data`              |
+| **Network name**    | `<project>-net`                      | `myapp-net`                        |
+
+Compose already applies the `<project>-<service>-N` pattern automatically (as seen throughout [Part 11](#part-11-multi-container-project), e.g. `multi-container-project-backend-1`)—the convention mainly matters for names you choose by hand with plain `docker run`.
+
+### 3. Security
+
+A consolidated checklist from practices introduced across [Part 12](#part-12-environment-variables) and [Part 15](#6-security-best-practices):
+
+- **Never bake secrets into an image**—not as an `ARG`, not as a file written and later deleted in a subsequent layer (recap: [Part 12, section 3](#3-secrets)).
+- **Pin exact base image versions**—avoid `:latest` in any Dockerfile meant for production (recap: [Part 5, section 4](#4-the-latest-tag-and-why-to-avoid-it)).
+- **Scan images regularly**: `docker scout cves <image>` or `trivy image <image>` before deploying, and periodically thereafter as new CVEs are disclosed.
+- **Minimize the attack surface**: prefer `-alpine`/`-slim` base images and multi-stage builds so build tools and dev dependencies never ship in the final image (recap: [Part 15](#part-15-docker-optimization)).
+- **Keep the Docker daemon and CLI updated**—vulnerabilities are occasionally found in Docker itself, not just container contents.
+
+### 4. Non-Root Users
+
+Running as `root` inside a container is the default, and it's the single most impactful thing to change—if an attacker escapes the application into the container's filesystem, a non-root process limits what they can touch.
+
+```dockerfile
+# Most official images (like node) already ship a built-in unprivileged user
+FROM node:20-alpine
+WORKDIR /app
+COPY --chown=node:node . .
+USER node
+CMD ["node", "dist/main"]
+```
+
+```dockerfile
+# If the base image has no built-in user, create one explicitly
+FROM alpine
+RUN addgroup -S app && adduser -S app -G app
+USER app
+```
+
+```bash
+# Confirm which user a running container is actually using
+docker exec <container> whoami
+docker inspect -f '{{.Config.User}}' <image>
+```
+
+This is the same pattern already applied in [`backend/Dockerfile.prod`](./multi-container-project/backend/Dockerfile.prod) from [Part 15](#1-multi-stage-builds): `USER node` before the final `CMD`.
+
+### 5. Image Versioning
+
+Tag images with meaningful, immutable versions instead of relying on `:latest`, which is mutable and gives you no way to know what's actually running or to roll back reliably.
+
+```bash
+# Tag with semantic versioning, and optionally a short git commit SHA
+docker build -t mengsreang/backend:1.4.0 .
+docker build -t mengsreang/backend:$(git rev-parse --short HEAD) .
+
+# "latest" can still point at the newest stable release, as a convenience alias—
+# just never make it the ONLY tag a deployment depends on
+docker tag mengsreang/backend:1.4.0 mengsreang/backend:latest
+```
+
+- **Immutable tags let you roll back instantly**: redeploying `mengsreang/backend:1.3.0` is guaranteed to be the exact bits that were previously running—`:latest` gives no such guarantee, since it's reassigned on every push.
+- **Follow semantic versioning** (`MAJOR.MINOR.PATCH`) for anything consumed by other teams or services, so version bumps communicate the scope of change.
+
+### 6. Resource Limits
+
+An unbounded container can consume all of a host's CPU or memory, starving every other container (and the host itself). Set explicit limits, especially in production.
+
+```bash
+# Limit a single container directly
+docker run -d --name backend --memory=512m --cpus=1.0 mengsreang/backend:1.4.0
+```
+
+```yaml
+# Same limits in Compose
+services:
+  backend:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 256M
+```
+
+```bash
+# Confirm the limits actually applied
+docker inspect backend --format 'Memory={{.HostConfig.Memory}} NanoCpus={{.HostConfig.NanoCpus}}'
+
+# Watch real usage against those limits live (recap: Part 14, section 4)
+docker stats backend
+```
+
+A container that hits its memory limit is killed by the kernel (visible as `OOMKilled: true` in `docker inspect`, recap: [Part 14, section 6](#6-common-errors))—size limits generously enough for real usage, informed by what `docker stats` shows under normal load.
+
+### 7. Cleanup Strategy
+
+Stopped containers, dangling images, unused volumes, and build cache all accumulate silently and eventually fill a host's disk. Recap of the cleanup commands scattered across earlier parts, now as one routine:
+
+```bash
+# Remove stopped containers
+docker container prune
+
+# Remove images not referenced by any container
+docker image prune -a
+
+# Remove unused volumes (careful: only run when you're sure no needed data lives there)
+docker volume prune
+
+# Remove unused networks
+docker network prune
+
+# Remove unused build cache
+docker builder prune
+
+# Or do all of the above at once
+docker system prune -a --volumes
+```
+
+- **Automate it**: schedule `docker system prune -af --volumes` (or a narrower subset) via a periodic cron job on long-running hosts, rather than relying on remembering to run it manually.
+- **Never blindly `--volumes` prune on a database host** without confirming which volumes are safe to lose—recap the backup/restore workflow from [Part 8, sections 6–7](#6-backup-a-volume) before pruning anything that holds real data.
+
+### Summary Cheat Sheet
+
+| Task                                | Command / Convention                                  |
+| -------------------------------------- | ---------------------------------------------------------- |
+| **Container naming**                  | `<project>-<service>`                                     |
+| **Image tag naming**                  | `<namespace>/<repo>:<semver>`                              |
+| **Run as non-root**                   | `USER <user>` (Dockerfile) / `docker exec <c> whoami`      |
+| **Tag a versioned release**           | `docker build -t <repo>:<semver> .`                        |
+| **Limit memory/CPU**                  | `docker run --memory=512m --cpus=1.0 ...`                  |
+| **Check applied resource limits**     | `docker inspect --format 'Memory={{.HostConfig.Memory}}'`  |
+| **Full cleanup**                      | `docker system prune -a --volumes`                         |
+| **Scan for vulnerabilities**          | `docker scout cves <image>` / `trivy image <image>`        |
