@@ -1,0 +1,27 @@
+services:
+  nginx:
+    build: ./nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-net
+
+  # Behind the Nginx edge, the frontend is served same-origin (no cross-origin
+  # API calls needed), so VITE_API_URL is baked in empty at build time, and
+  # its port is no longer published directly on the host — only Nginx is.
+  frontend:
+    build:
+      args:
+        VITE_API_URL: ""
+    ports: !reset []
+
+  # Same for the backend: only reachable through Nginx now, not directly.
+  backend:
+    ports: !reset []

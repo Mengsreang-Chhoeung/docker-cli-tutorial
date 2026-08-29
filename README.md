@@ -141,6 +141,14 @@
   - [5. Image Versioning](#5-image-versioning)
   - [6. Resource Limits](#6-resource-limits)
   - [7. Cleanup Strategy](#7-cleanup-strategy)
+- [Part 20: Complete Real-World Project](#part-20-complete-real-world-project)
+  - [1. Architecture](#1-architecture)
+  - [2. Nginx Edge: Single Entry Point](#2-nginx-edge-single-entry-point)
+  - [3. SSL/TLS](#3-ssltls)
+  - [4. Docker Compose: Layering the Files](#4-docker-compose-layering-the-files)
+  - [5. Automatic Restart](#5-automatic-restart)
+  - [6. Production-Ready Checklist](#6-production-ready-checklist)
+  - [7. Run It](#7-run-it)
 
 ---
 
@@ -2891,3 +2899,173 @@ docker system prune -a --volumes
 | **Check applied resource limits**     | `docker inspect --format 'Memory={{.HostConfig.Memory}}'`  |
 | **Full cleanup**                      | `docker system prune -a --volumes`                         |
 | **Scan for vulnerabilities**          | `docker scout cves <image>` / `trivy image <image>`        |
+
+## Part 20: Complete Real-World Project
+
+This final part assembles everything from the entire series into one production-ready deployment: **React (Vite)**, **NestJS**, **PostgreSQL**, **Redis**, **Nginx**, and **SSL**—all launched with Docker Compose. Rather than starting over, it adds one more layer on top of [`multi-container-project/`](./multi-container-project) (Parts 11, 15, and 18): a single Nginx entry point in front of the whole stack, terminating HTTPS.
+
+### 1. Architecture
+
+```
+                         ┌─────────────────────────────┐
+   HTTPS (443)  ───────▶ │   nginx (reverse proxy)     │
+   HTTP  (80)   ───────▶ │   terminates TLS, routes:   │
+                         │   /            -> frontend  │
+                         │   /health, ...  -> backend   │
+                         └───────────┬─────────┬────────┘
+                                     │         │
+                          ┌──────────▼──┐   ┌──▼───────────┐
+                          │  frontend   │   │   backend    │
+                          │ React/Vite  │   │   NestJS     │
+                          │ (internal)  │   │  (internal)  │
+                          └─────────────┘   └───┬──────┬───┘
+                                                 │      │
+                                          ┌──────▼──┐ ┌─▼─────┐
+                                          │ postgres│ │ redis │
+                                          └─────────┘ └───────┘
+```
+
+Only `nginx` is reachable from outside the Docker network—`frontend`, `backend`, `db`, and `redis` all communicate over the internal `app-net` bridge network (recap: [Part 9](#part-9-docker-networking)), the same pattern already used throughout [Part 11](#part-11-multi-container-project).
+
+### 2. Nginx Edge: Single Entry Point
+
+[`nginx/nginx.conf`](./multi-container-project/nginx/nginx.conf) is the new piece: it redirects plain HTTP to HTTPS, then routes by path—backend API routes go to `backend`, everything else goes to `frontend`.
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+
+    location ~ ^/(health|db-check|cache-check)$ {
+        proxy_pass http://backend:3000;
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        proxy_pass http://frontend:80;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+Because the frontend is now always served **same-origin** through this proxy, its API calls no longer need a cross-origin URL—`VITE_API_URL` is baked in as an empty string at build time, so `fetch(`${API_URL}/health`)` in [`App.jsx`](./multi-container-project/frontend/src/App.jsx) becomes a same-origin `fetch("/health")` automatically, no source change required (recap the build-arg pattern from [Part 18, section 1](#1-production-compose)).
+
+> **A note on route matching**: this demo proxies a fixed, small list of known backend paths. A larger real application would typically give the backend a shared prefix (e.g. NestJS's `app.setGlobalPrefix('api')`) and proxy everything under `/api/` in one `location` block instead of enumerating routes—simpler to maintain as the API grows.
+
+### 3. SSL/TLS
+
+For **local testing**, [`nginx/generate-self-signed-cert.sh`](./multi-container-project/nginx/generate-self-signed-cert.sh) generates a throwaway self-signed certificate so HTTPS can be exercised end-to-end without owning a real domain:
+
+```bash
+./nginx/generate-self-signed-cert.sh
+# writes nginx/certs/fullchain.pem and nginx/certs/privkey.pem
+```
+
+Browsers will (correctly) warn that a self-signed certificate isn't trusted—that's expected for local development, verifiable with `curl -k` instead of a browser.
+
+For **production**, replace the self-signed files with a real certificate the same way [Part 17, section 6](#6-https-overview) already covered: run Certbot on the host (or in its own container) against your actual domain, and mount the resulting `fullchain.pem`/`privkey.pem` into `nginx/certs/` at the exact same paths—`nginx.conf` doesn't need to change at all.
+
+```bash
+# On the VPS, after Certbot has issued a real certificate for example.com:
+cp /etc/letsencrypt/live/example.com/fullchain.pem nginx/certs/fullchain.pem
+cp /etc/letsencrypt/live/example.com/privkey.pem   nginx/certs/privkey.pem
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml restart nginx
+```
+
+### 4. Docker Compose: Layering the Files
+
+Rather than duplicating the whole stack, [`docker-compose.ssl.yml`](./multi-container-project/docker-compose.ssl.yml) is an **override file** (recap: [Part 12, section 5](#5-different-environments)) that layers on top of the existing `docker-compose.prod.yml` from [Part 18](#part-18-docker-compose-in-production):
+
+```yaml
+services:
+  nginx:
+    build: ./nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-net
+
+  frontend:
+    build:
+      args:
+        VITE_API_URL: ""
+    ports: !reset [] # no longer published directly—only nginx is
+
+  backend:
+    ports: !reset [] # same: only reachable through nginx now
+```
+
+The `!reset []` marker is needed because Compose normally **merges** array fields like `ports` across layered files rather than replacing them—without it, `frontend` and `backend` would stay published on their original host ports (`80` and `3000`) *in addition to* Nginx trying to claim `80`, causing a port conflict.
+
+```bash
+# Run both files together—later files override/extend earlier ones
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up --build -d
+```
+
+### 5. Automatic Restart
+
+Every service in the stack—including the new `nginx` service—uses `restart: unless-stopped` (recap: [Part 18, section 2](#2-restart-policy)), so the entire stack self-heals after a crash or host reboot without manual intervention. Health checks on `backend`, `db`, and `redis` (recap: [Part 18, section 3](#3-health-checks)) still gate startup order underneath the new Nginx layer.
+
+### 6. Production-Ready Checklist
+
+Everything from [Part 19](#part-19-docker-best-practices) applies to this stack directly:
+
+- ✅ Multi-stage, optimized production Dockerfiles (`Dockerfile.prod` for both `frontend` and `backend`, [Part 15](#part-15-docker-optimization))
+- ✅ Non-root user in the backend container (`USER node`, [Part 19, section 4](#4-non-root-users))
+- ✅ `restart: unless-stopped` on every service ([Part 18, section 2](#2-restart-policy); recap above in section 5)
+- ✅ Health checks gating startup order ([Part 18, section 3](#3-health-checks))
+- ✅ Bounded JSON-file logging on every service ([Part 18, section 4](#4-logging))
+- ✅ Persistent named volumes for `postgres_data` and `redis_data` ([Part 8](#part-8-docker-volumes))
+- ✅ Secrets/config via `.env`, never committed (only `.env.example` is, [Part 12](#part-12-environment-variables))
+- ✅ Single public entry point behind Nginx, HTTPS-only (this part)
+- ✅ Immutable image tags in a real deployment, not `:latest` ([Part 19, section 5](#5-image-versioning))
+
+### 7. Run It
+
+```bash
+cd multi-container-project
+cp .env.example .env
+./nginx/generate-self-signed-cert.sh   # local HTTPS testing only
+
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up --build -d
+
+# Frontend (through Nginx):        https://localhost/
+curl -k https://localhost/
+
+# Backend API (through Nginx):
+curl -k https://localhost/health
+curl -k https://localhost/db-check
+curl -k https://localhost/cache-check
+
+# Tear down (add -v to also delete the Postgres/Redis volumes)
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml down
+```
+
+That's the complete series: from `docker run hello-world` in [Part 1](#part-1-what-is-docker) to a health-checked, auto-restarting, HTTPS-terminated multi-container production stack here in Part 20.
+
+### Summary Cheat Sheet
+
+| Task                                     | Command                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Generate a local self-signed cert**      | `./nginx/generate-self-signed-cert.sh`                                       |
+| **Run the complete stack**                 | `docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up --build -d` |
+| **Reset an array field in an override**    | `<key>: !reset []`                                                            |
+| **Test HTTPS locally (self-signed cert)**  | `curl -k https://localhost/`                                                  |
+| **Swap in a real certificate**             | copy Certbot's `fullchain.pem`/`privkey.pem` into `nginx/certs/`, restart nginx |
+| **Tear down the full stack**               | `docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml down -v` |

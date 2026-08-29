@@ -8,12 +8,16 @@ This is a Docker CLI tutorial series written for Khmer-speaking web developers, 
 
 ## Structure
 
-- `README.md` — the canonical tutorial content, organized into numbered "Part N: Title" sections (currently Parts 1–19 of a planned 20-part series plus bonus topics). Each part has a matching Table of Contents entry with an anchor link at the top of the file. This is the file that gets updated for new parts/issues.
+- `README.md` — the canonical tutorial content, organized into numbered "Part N: Title" sections (Parts 1–20, the full planned core series, plus bonus topics not yet written). Each part has a matching Table of Contents entry with an anchor link at the top of the file. This is the file that gets updated for new parts/issues.
 - `README_KM.md` — an older, unstructured Khmer-language draft that predates the Part-based series and is **not** kept in sync with `README.md` (it has no "Part N" sections at all). Past PRs for new parts (e.g. Part 7) only touch `README.md`; don't assume changes need mirroring here unless explicitly asked.
 - `_thumbnail_doc/` — PNG/JPG images embedded in the README via relative paths (e.g. `![...](./_thumbnail_doc/what-docker-solves.png)`). Image filenames are referenced directly in the markdown, so renaming an image requires updating both READMEs.
 - `api/` — the Express app built in "Part 7: Building a Node.js App". Minimal Node/Express app (`app.js`) with its own `Dockerfile`, `.dockerignore`, `package.json`. Used purely as tutorial example code walked through in the README, not a maintained service.
 - `cambodia-website/` — a static HTML/CSS/JS site (used in earlier/other parts as a Dockerize-a-static-site example) with its own `Dockerfile` (`FROM nginx:latest`, serves static files via nginx).
-- `multi-container-project/` — the multi-service app built in "Part 11: Multi-Container Project": a React/Vite `frontend/` and a NestJS `backend/` (each with its own `Dockerfile`), wired to `postgres` and `redis` official images via a single `docker-compose.yml` at its root. The backend exposes `/health`, `/db-check`, `/cache-check` to demonstrate real Postgres/Redis connectivity; the frontend just calls `/health`. Keep it deliberately minimal — it's a teaching example, not a production scaffold (that's Part 20's job). `backend/Dockerfile.prod` (added in Part 15) is a multi-stage variant of the same service used to demonstrate real image-size optimization — the plain `Dockerfile` stays dev-oriented (`start:dev`, watch mode) and is what `docker-compose.yml` builds. `frontend/Dockerfile.prod` (added in Part 18) builds the Vite bundle and serves it via Nginx; `docker-compose.prod.yml` (also Part 18) wires both `Dockerfile.prod` variants together with restart policies, health checks (note: use `127.0.0.1`, not `localhost`, in health check URLs — Alpine containers resolve `localhost` to `::1` first and these Node apps only bind IPv4), and bounded JSON-file logging.
+- `multi-container-project/` — the multi-service app built up across Parts 11, 15, 18, and 20: a React/Vite `frontend/` and a NestJS `backend/` (each with its own `Dockerfile`), wired to `postgres` and `redis` official images. The backend exposes `/health`, `/db-check`, `/cache-check` to demonstrate real Postgres/Redis connectivity; the frontend calls the same paths. Keep it deliberately minimal — it's a teaching example, not enterprise-grade software.
+  - `docker-compose.yml` — local dev (hot reload, watch mode); built by the plain `Dockerfile`s.
+  - `backend/Dockerfile.prod` (Part 15) / `frontend/Dockerfile.prod` (Part 18) — multi-stage production builds (backend: compiled + prod deps only; frontend: Vite build served by Nginx).
+  - `docker-compose.prod.yml` (Part 18) — production profile using the `Dockerfile.prod`s, with restart policies, health checks, and bounded JSON-file logging. **Gotcha**: health check URLs must use `127.0.0.1`, not `localhost` — Alpine containers resolve `localhost` to `::1` first and these Node apps only bind IPv4.
+  - `nginx/` + `docker-compose.ssl.yml` (Part 20) — a Compose **override** layered on top of `docker-compose.prod.yml` that adds an Nginx reverse-proxy/TLS-termination edge in front of the whole stack, and un-publishes `frontend`/`backend`'s direct host ports via the `!reset []` merge marker (a plain `ports: []` override does *not* clear a base file's `ports` list — Compose merges list fields by default). `nginx/generate-self-signed-cert.sh` creates a local-only self-signed cert for testing; production swaps in real Certbot-issued files at the same paths (recap Part 17, section 6).
 
 ## Working conventions
 
@@ -53,4 +57,13 @@ cd multi-container-project
 cp .env.example .env
 docker compose -f docker-compose.prod.yml up --build -d
 docker compose -f docker-compose.prod.yml ps
+```
+
+`multi-container-project/` complete stack with Nginx + HTTPS edge (Part 20):
+```bash
+cd multi-container-project
+cp .env.example .env
+./nginx/generate-self-signed-cert.sh
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up --build -d
+curl -k https://localhost/health
 ```
