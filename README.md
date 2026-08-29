@@ -90,6 +90,14 @@
   - [3. Secrets](#3-secrets)
   - [4. Best Practices](#4-best-practices)
   - [5. Different Environments](#5-different-environments)
+- [Part 13: Dockerizing Databases](#part-13-dockerizing-databases)
+  - [1. PostgreSQL](#1-postgresql)
+  - [2. MySQL](#2-mysql)
+  - [3. MongoDB](#3-mongodb)
+  - [4. Redis](#4-redis)
+  - [5. Initializing Databases](#5-initializing-databases)
+  - [6. Import/Export Data](#6-importexport-data)
+  - [7. Persistent Storage](#7-persistent-storage)
 
 ---
 
@@ -1752,3 +1760,196 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 | **Compose: select a specific file**  | `docker compose --env-file .env.production up`|
 | **Compose: layer override files**    | `docker compose -f base.yml -f prod.yml up`   |
 | **Mount a Docker Secret as a file**  | `secrets:` + `_FILE` env var convention       |
+
+## Part 13: Dockerizing Databases
+
+Running databases in Docker is one of the most common real-world use cases—no more installing PostgreSQL, MySQL, MongoDB, or Redis directly on your machine. This section covers running each of the four most common databases, initializing them with startup data, importing/exporting data, and making sure it all survives container restarts.
+
+### 1. PostgreSQL
+
+```bash
+# Run PostgreSQL with credentials set via environment variables
+docker run -d \
+  --name postgres-db \
+  -e POSTGRES_USER=admin \
+  -e POSTGRES_PASSWORD=secret \
+  -e POSTGRES_DB=app_db \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:16-alpine
+
+# Connect using the psql client bundled in the image
+docker exec -it postgres-db psql -U admin -d app_db
+```
+
+### 2. MySQL
+
+```bash
+# Run MySQL with credentials set via environment variables
+docker run -d \
+  --name mysql-db \
+  -e MYSQL_ROOT_PASSWORD=secret \
+  -e MYSQL_DATABASE=app_db \
+  -e MYSQL_USER=admin \
+  -e MYSQL_PASSWORD=secret \
+  -p 3306:3306 \
+  -v mysql_data:/var/lib/mysql \
+  mysql:8.4
+
+# Connect using the mysql client bundled in the image
+docker exec -it mysql-db mysql -u admin -p app_db
+```
+
+### 3. MongoDB
+
+```bash
+# Run MongoDB with a root user set via environment variables
+docker run -d \
+  --name mongo-db \
+  -e MONGO_INITDB_ROOT_USERNAME=admin \
+  -e MONGO_INITDB_ROOT_PASSWORD=secret \
+  -p 27017:27017 \
+  -v mongo_data:/data/db \
+  mongo:7
+
+# Connect using the mongosh client bundled in the image
+docker exec -it mongo-db mongosh -u admin -p secret
+```
+
+### 4. Redis
+
+```bash
+# Run Redis (optionally protected with a password via --requirepass)
+docker run -d \
+  --name redis-cache \
+  -p 6379:6379 \
+  -v redis_data:/data \
+  redis:7-alpine redis-server --requirepass secret
+
+# Connect using the redis-cli client bundled in the image
+docker exec -it redis-cache redis-cli -a secret
+```
+
+### 5. Initializing Databases
+
+The official PostgreSQL, MySQL, and MongoDB images all run any `.sql`/`.js` scripts found in a specific directory **the first time** the container starts with an empty data directory—perfect for seeding schemas and initial data.
+
+```sql
+-- init.sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL
+);
+INSERT INTO users (name) VALUES ('Mengsreang');
+```
+
+```bash
+# PostgreSQL: mount init scripts into /docker-entrypoint-initdb.d
+docker run -d \
+  --name postgres-db \
+  -e POSTGRES_PASSWORD=secret \
+  -v $(pwd)/init.sql:/docker-entrypoint-initdb.d/init.sql \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:16-alpine
+```
+
+| Database   | Init Directory                  |
+| ---------- | -------------------------------- |
+| PostgreSQL | `/docker-entrypoint-initdb.d/`  |
+| MySQL      | `/docker-entrypoint-initdb.d/`  |
+| MongoDB    | `/docker-entrypoint-initdb.d/`  |
+
+> **Note**: These init scripts only run against an **empty** data directory/volume. If the volume already has data (from a previous run), the scripts are silently skipped.
+
+### 6. Import/Export Data
+
+Each database ships its own dump/restore tooling inside the official image, runnable via `docker exec`.
+
+**PostgreSQL:**
+
+```bash
+# Export (dump) the database to a file on the host
+docker exec postgres-db pg_dump -U admin app_db > backup.sql
+
+# Import (restore) from a dump file
+cat backup.sql | docker exec -i postgres-db psql -U admin -d app_db
+```
+
+**MySQL:**
+
+```bash
+# Export
+docker exec mysql-db mysqldump -u admin -psecret app_db > backup.sql
+
+# Import
+cat backup.sql | docker exec -i mysql-db mysql -u admin -psecret app_db
+```
+
+**MongoDB:**
+
+```bash
+# Export (dumps into a BSON archive inside the container, then copy it out)
+docker exec mongo-db mongodump -u admin -p secret --archive=/tmp/backup.archive
+docker cp mongo-db:/tmp/backup.archive ./backup.archive
+
+# Import
+docker cp ./backup.archive mongo-db:/tmp/backup.archive
+docker exec mongo-db mongorestore -u admin -p secret --archive=/tmp/backup.archive
+```
+
+**Redis:**
+
+```bash
+# Trigger a synchronous snapshot save to disk (dump.rdb inside the volume)
+docker exec redis-cache redis-cli -a secret SAVE
+
+# Copy the resulting RDB snapshot out to the host
+docker cp redis-cache:/data/dump.rdb ./dump.rdb
+```
+
+### 7. Persistent Storage
+
+Every command above mounts a **Named Volume** (recap: [Part 8](#part-8-docker-volumes)) so data survives removing and recreating the container—this is not optional for a real database.
+
+| Database   | Data Directory to Mount    |
+| ---------- | ---------------------------- |
+| PostgreSQL | `/var/lib/postgresql/data`  |
+| MySQL      | `/var/lib/mysql`            |
+| MongoDB    | `/data/db`                  |
+| Redis      | `/data`                     |
+
+```bash
+# Create named volumes explicitly ahead of time (optional—docker run creates them automatically)
+docker volume create postgres_data
+docker volume create mysql_data
+docker volume create mongo_data
+docker volume create redis_data
+```
+
+In a Compose-based project (recap: [Part 10](#part-10-docker-compose)), the same pattern looks like this:
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+### Summary Cheat Sheet
+
+| Task                        | Command                                                   |
+| ---------------------------- | ------------------------------------------------------------ |
+| **Run PostgreSQL**           | `docker run -d -e POSTGRES_PASSWORD=... postgres:16-alpine` |
+| **Run MySQL**                | `docker run -d -e MYSQL_ROOT_PASSWORD=... mysql:8.4`        |
+| **Run MongoDB**              | `docker run -d -e MONGO_INITDB_ROOT_PASSWORD=... mongo:7`   |
+| **Run Redis**                | `docker run -d redis:7-alpine`                              |
+| **PostgreSQL dump/restore**  | `pg_dump` / `psql`                                          |
+| **MySQL dump/restore**       | `mysqldump` / `mysql`                                       |
+| **MongoDB dump/restore**     | `mongodump` / `mongorestore`                                |
+| **Redis snapshot**           | `redis-cli SAVE` (writes `dump.rdb`)                         |
