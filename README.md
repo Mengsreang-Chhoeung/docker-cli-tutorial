@@ -149,6 +149,18 @@
   - [5. Automatic Restart](#5-automatic-restart)
   - [6. Production-Ready Checklist](#6-production-ready-checklist)
   - [7. Run It](#7-run-it)
+- [Bonus Topics](#bonus-topics)
+  - [1. Docker Swarm](#1-docker-swarm)
+  - [2. Kubernetes Introduction](#2-kubernetes-introduction)
+  - [3. Portainer](#3-portainer)
+  - [4. Watchtower](#4-watchtower)
+  - [5. Traefik](#5-traefik)
+  - [6. Docker Secrets](#6-docker-secrets)
+  - [7. Docker Buildx](#7-docker-buildx)
+  - [8. CI/CD with GitHub Actions or GitLab CI](#8-cicd-with-github-actions-or-gitlab-ci)
+  - [9. Monitoring with Prometheus and Grafana](#9-monitoring-with-prometheus-and-grafana)
+  - [10. Docker Security Scanning](#10-docker-security-scanning)
+  - [11. Backup and Restore Strategies](#11-backup-and-restore-strategies)
 
 ---
 
@@ -3069,3 +3081,210 @@ That's the complete series: from `docker run hello-world` in [Part 1](#part-1-wh
 | **Test HTTPS locally (self-signed cert)**  | `curl -k https://localhost/`                                                  |
 | **Swap in a real certificate**             | copy Certbot's `fullchain.pem`/`privkey.pem` into `nginx/certs/`, restart nginx |
 | **Tear down the full stack**               | `docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml down -v` |
+
+## Bonus Topics
+
+The core series (Parts 1–20) takes you from "what is a container?" to a production-ready, HTTPS-terminated multi-container deployment. Beyond that, the Docker ecosystem has an entire second layer of tools for orchestrating containers at scale, managing them visually, and integrating them into a full CI/CD and observability pipeline. This section is a **roadmap**, not a full walkthrough—a short orientation to each topic, what problem it solves, and where to go deeper, so each one could become its own future episode.
+
+### 1. Docker Swarm
+
+Docker's own **built-in orchestrator**, for running containers across a cluster of multiple machines instead of just one. It uses the same `docker-compose.yml` format you already know.
+
+```bash
+# Turn the current host into a Swarm manager
+docker swarm init
+
+# Deploy a Compose file as a "stack" across the cluster
+docker stack deploy -c docker-compose.yml myapp
+
+# List running stacks / services
+docker stack ls
+docker service ls
+```
+
+- **When to reach for it**: You already know Compose, need multi-host orchestration, and want to stay entirely within the Docker toolchain rather than adopting Kubernetes.
+
+### 2. Kubernetes Introduction
+
+The industry-standard container **orchestrator**, far more powerful (and more complex) than Swarm—the default choice at most companies running containers at real scale.
+
+```bash
+# Core building blocks, roughly analogous to Compose concepts you already know:
+# Pod       ~ a running container (or tightly coupled group of them)
+# Deployment ~ manages replicas of a Pod, handles rolling updates
+# Service    ~ stable networking/DNS in front of a set of Pods (like a Compose service name)
+
+# A minimal local cluster for learning (Docker Desktop has a one-click Kubernetes toggle)
+kubectl get nodes
+kubectl apply -f deployment.yaml
+kubectl get pods
+```
+
+- **When to reach for it**: Multi-team, multi-service platforms needing autoscaling, self-healing, and a large ecosystem of tooling—significant added operational complexity over Compose/Swarm, so it's worth outgrowing Compose first before adopting it.
+
+### 3. Portainer
+
+A **web UI** for managing Docker (and Swarm/Kubernetes) visually—containers, images, volumes, networks, and logs, all clickable instead of CLI-only.
+
+```bash
+# Run Portainer itself as a container, with access to the host's Docker socket
+docker volume create portainer_data
+docker run -d \
+  --name portainer \
+  -p 9443:9443 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:latest
+```
+
+- **When to reach for it**: Onboarding teammates less comfortable with the CLI, or wanting a quick visual dashboard on a personal VPS without setting up a full monitoring stack.
+- **Caveat**: Mounting the Docker socket gives Portainer (and anyone with access to it) root-equivalent control over the host—treat access to it with the same care as root SSH access.
+
+### 4. Watchtower
+
+A container that watches your other running containers and **automatically pulls and redeploys** them when a newer image is pushed to the registry—useful for keeping a personal VPS's containers patched without manual `docker pull && docker run` every time.
+
+```bash
+docker run -d \
+  --name watchtower \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower
+```
+
+- **Caveat**: Great for low-stakes personal projects; risky for anything where you want deploys to be deliberate and tested—prefer an explicit CI/CD pipeline (topic 8 below) for production services.
+
+### 5. Traefik
+
+A **reverse proxy and load balancer**, similar in purpose to the Nginx edge built in [Part 20](#2-nginx-edge-single-entry-point)—but Traefik auto-discovers services via Docker labels instead of a hand-written config file, and automates Let's Encrypt certificate issuance/renewal out of the box.
+
+```yaml
+services:
+  backend:
+    image: my-api:v1
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`api.example.com`)"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+```
+
+- **When to reach for it over the manual Nginx setup from Part 20**: Many services behind one proxy, each needing its own subdomain/routing rule and its own certificate—Traefik picks up new services automatically as they start, with zero proxy-config edits.
+
+### 6. Docker Secrets
+
+Already introduced conceptually in [Part 12, section 3](#3-secrets)—Docker Secrets is Swarm's built-in mechanism for distributing sensitive values to containers as in-memory mounted files rather than environment variables, so they never appear in `docker inspect` or process listings.
+
+```bash
+# Create a secret from a file (requires Swarm mode)
+echo "supersecretpassword" | docker secret create db_password -
+
+# Attach it to a service
+docker service create --name db --secret db_password postgres:16-alpine
+```
+
+- The application reads `/run/secrets/db_password` from the filesystem—see the full example already worked through in [Part 12](#3-secrets).
+
+### 7. Docker Buildx
+
+The modern `docker build` backend, extending it with **multi-platform builds**—producing a single image tag that works on both `linux/amd64` and `linux/arm64` (relevant since Apple Silicon Macs and AWS Graviton servers are both `arm64`).
+
+```bash
+# Buildx ships with Docker Desktop by default; check what's available
+docker buildx ls
+
+# Build and push a single tag that supports multiple architectures at once
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t mengsreang/my-app:v1 \
+  --push .
+```
+
+- **When it matters**: Your team develops on Apple Silicon but deploys to `amd64` cloud VMs (or vice versa)—without a multi-platform image, `docker run` on the wrong architecture either fails outright or silently runs under slow emulation.
+
+### 8. CI/CD with GitHub Actions or GitLab CI
+
+Automating the build → test → push → deploy pipeline (recap: manual versions of each step in [Part 16](#part-16-docker-registry) and [Part 17](#part-17-deploy-with-docker)) so every merge to `main` ships itself.
+
+```yaml
+# .github/workflows/deploy.yml
+name: Build and Push
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: mengsreang/my-app:${{ github.sha }}
+```
+
+- **Registry credentials belong in the CI platform's own secrets store** (GitHub Actions secrets, GitLab CI/CD variables)—never in the repository, recap [Part 12, section 3](#3-secrets).
+
+### 9. Monitoring with Prometheus and Grafana
+
+**Prometheus** scrapes and stores time-series metrics (CPU, memory, request counts, latency) from your containers; **Grafana** turns those metrics into dashboards and alerts—the natural next step after manually checking `docker stats` (recap: [Part 14, section 4](#4-docker-stats)).
+
+```yaml
+# docker-compose.monitoring.yml
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+```
+
+- **When to reach for it**: Once `docker stats` and `docker logs` stop being enough—you want historical trends, dashboards, and alerts (e.g., "page me if memory usage exceeds 90% for 5 minutes") rather than a live, ephemeral snapshot.
+
+### 10. Docker Security Scanning
+
+Already introduced in [Part 15, section 6](#6-security-best-practices)—`docker scout` and `trivy` scan an image's layers against known CVE databases. At the CI/CD level (topic 8 above), this becomes an automated gate rather than a manual check.
+
+```bash
+# Fail a CI pipeline if HIGH/CRITICAL vulnerabilities are found
+trivy image --exit-code 1 --severity HIGH,CRITICAL mengsreang/my-app:v1
+```
+
+- **When to reach for it as a gate, not just a manual check**: Any image destined for production should be scanned automatically on every build, blocking the pipeline rather than relying on someone remembering to run it by hand.
+
+### 11. Backup and Restore Strategies
+
+Already covered per-database in [Part 8, sections 6–7](#6-backup-a-volume) and [Part 13, section 6](#6-importexport-data)—the bonus-level version is **automating** that dump/restore process and storing backups off-host.
+
+```bash
+# A simple cron-driven backup script, run daily on the host
+0 2 * * * docker exec postgres-db pg_dump -U admin app_db | gzip > /backups/app_db-$(date +\%F).sql.gz
+
+# Sync backups to off-host storage (e.g. S3-compatible object storage)
+aws s3 sync /backups s3://my-backups-bucket/app_db/
+```
+
+- **The three things a real backup strategy needs that a one-off `pg_dump` doesn't**: a **schedule** (cron/systemd timer), **off-host storage** (a lost VPS shouldn't mean lost backups too), and a **tested restore procedure**—an untested backup is not a backup, it's a hope.
+
+### Summary Cheat Sheet
+
+| Topic                       | Command / Entry Point                                          |
+| ----------------------------- | ------------------------------------------------------------------ |
+| **Init a Swarm cluster**     | `docker swarm init`                                               |
+| **Deploy a Compose stack**   | `docker stack deploy -c docker-compose.yml <name>`                |
+| **Kubernetes basics**        | `kubectl get pods` / `kubectl apply -f <file>`                    |
+| **Run Portainer**            | `docker run -p 9443:9443 -v /var/run/docker.sock:... portainer/portainer-ce` |
+| **Run Watchtower**           | `docker run -v /var/run/docker.sock:... containrrr/watchtower`    |
+| **Create a Swarm secret**    | `docker secret create <name> -`                                   |
+| **Multi-platform build**     | `docker buildx build --platform linux/amd64,linux/arm64 ...`      |
+| **Scan + fail CI on CVEs**   | `trivy image --exit-code 1 --severity HIGH,CRITICAL <image>`      |
+| **Automated backup**         | cron + `pg_dump`/`mongodump`/etc. piped to off-host storage        |
