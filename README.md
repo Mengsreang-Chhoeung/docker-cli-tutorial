@@ -113,6 +113,13 @@
   - [4. Build Cache](#4-build-cache)
   - [5. Reduce Image Size](#5-reduce-image-size)
   - [6. Security Best Practices](#6-security-best-practices)
+- [Part 16: Docker Registry](#part-16-docker-registry)
+  - [1. Docker Hub](#1-docker-hub)
+  - [2. Login](#2-login)
+  - [3. Tag an Image](#3-tag-an-image)
+  - [4. Push an Image](#4-push-an-image)
+  - [5. Pull an Image](#5-pull-an-image)
+  - [6. Private Repositories](#6-private-repositories)
 
 ---
 
@@ -2297,3 +2304,116 @@ A smaller image is also a more secure one—fewer packages means fewer CVEs. A f
 | **Clear the build cache**              | `docker builder prune`                                |
 | **View image layer history/sizes**     | `docker history <image>`                              |
 | **Scan for vulnerabilities**           | `docker scout cves <image>` / `trivy image <image>`   |
+
+## Part 16: Docker Registry
+
+Once an image is built and optimized, it needs to get from your machine to everyone else's—teammates, CI runners, and production servers. That's what a **registry** is for. This section covers Docker Hub, authenticating, tagging, pushing, pulling, and private repositories.
+
+### 1. Docker Hub
+
+Recap from [Part 2, section 3](#3-registries--docker-hub): **Docker Hub** is Docker's default public registry, hosting both official base images (`node`, `postgres`, `nginx`, `redis`, …) and images published by individual users and organizations.
+
+Every image reference resolves to a registry, repository, and tag, even when the registry is left implicit:
+
+```
+[registry_url]/[namespace]/[repository]:[tag]
+```
+
+- `nginx:alpine` → implicitly `docker.io/library/nginx:alpine` (an **official** image, under the `library` namespace).
+- `mengsreang/my-app:v1` → `docker.io/mengsreang/my-app:v1` (a **user/organization** namespace on Docker Hub).
+- `ghcr.io/mengsreang/my-app:v1` → an image hosted on GitHub Container Registry instead of Docker Hub.
+
+You'll need a free [Docker Hub account](https://hub.docker.com/) to push your own images.
+
+### 2. Login
+
+Authenticate the Docker CLI with a registry before pushing or pulling from a private repository. Credentials are stored (or handed to your OS credential helper) so you don't need to log in again for every command.
+
+```bash
+# Log in to Docker Hub interactively (prompts for username and password/access token)
+docker login
+
+# Log in to a different registry (e.g. GitHub Container Registry)
+docker login ghcr.io
+
+# Log in non-interactively (e.g. in a CI pipeline) using an access token piped via stdin
+echo "$DOCKER_ACCESS_TOKEN" | docker login -u mengsreang --password-stdin
+
+# Log out
+docker logout
+```
+
+> **Best practice**: Use a scoped **access token** (Docker Hub → Account Settings → Security) instead of your account password, especially in CI/CD. Never pass a password directly with `-p`—it ends up in shell history and process listings; `--password-stdin` avoids both.
+
+### 3. Tag an Image
+
+A registry identifies which repository (and namespace) to push to entirely from the image's **tag**—`docker push` doesn't take a destination argument, so the image must already be tagged with the full target reference.
+
+```bash
+# Build normally (tagged only locally)
+docker build -t my-app:v1 .
+
+# Re-tag the same image with a full registry reference
+docker tag my-app:v1 mengsreang/my-app:v1
+
+# You can also tag it multiple times, e.g. a version and "latest"
+docker tag my-app:v1 mengsreang/my-app:latest
+```
+
+`docker tag` doesn't copy or rebuild anything—it just adds another name pointing at the same underlying image ID, confirmable with `docker images`.
+
+### 4. Push an Image
+
+`docker push` uploads every layer of a tagged image to the registry named in its tag (requires being logged in to that registry, per section 2).
+
+```bash
+# Push a specific tag
+docker push mengsreang/my-app:v1
+
+# Push all tags for a repository at once
+docker push -a mengsreang/my-app
+```
+
+Layers already present in the registry (e.g., a shared base image layer another image already pushed) are skipped automatically—only new/changed layers are actually uploaded.
+
+### 5. Pull an Image
+
+`docker pull` downloads an image from a registry—the same operation `docker run` performs automatically when an image isn't found locally (recap: [Part 3, section 2](#2-pull-an-image-explicitly)).
+
+```bash
+# Pull a specific tag
+docker pull mengsreang/my-app:v1
+
+# Pull from a non-default registry
+docker pull ghcr.io/mengsreang/my-app:v1
+
+# Then run it like any other image
+docker run -d --name my-app -p 3000:3000 mengsreang/my-app:v1
+```
+
+### 6. Private Repositories
+
+By default, a new Docker Hub repository can be created as either **public** (anyone can pull) or **private** (only authenticated, authorized accounts can pull)—set this from the Docker Hub web UI when creating the repository, or via an organization's team permissions.
+
+```bash
+# Pulling/pushing a private repository requires being logged in as an
+# account with access—an unauthenticated pull fails with "pull access denied"
+docker login
+docker pull mengsreang/private-app:v1
+```
+
+- **Private by default in CI/production**: Application images (as opposed to public base images) are usually kept private, since they may embed proprietary code even though they should never embed secrets (recap: [Part 15, section 6](#6-security-best-practices)).
+
+- **Enterprise-grade private registries**: For teams needing finer-grained access control, vulnerability scanning, or on-premises hosting, common alternatives to a Docker Hub private repo include **AWS ECR**, **GitHub Container Registry (GHCR)**, **Google Artifact Registry**, and **Azure Container Registry (ACR)**. Authentication works the same way—`docker login <registry-url>` followed by tagging images with that registry's hostname.
+
+### Summary Cheat Sheet
+
+| Task                              | Command                                          |
+| ------------------------------------ | --------------------------------------------------- |
+| **Log in to a registry**           | `docker login [registry]`                         |
+| **Log in non-interactively**       | `echo $TOKEN \| docker login -u <user> --password-stdin` |
+| **Log out**                        | `docker logout`                                    |
+| **Tag an image for a registry**    | `docker tag <local-image> <user>/<repo>:<tag>`     |
+| **Push an image**                  | `docker push <user>/<repo>:<tag>`                  |
+| **Push all tags**                  | `docker push -a <user>/<repo>`                     |
+| **Pull an image**                  | `docker pull <user>/<repo>:<tag>`                  |
