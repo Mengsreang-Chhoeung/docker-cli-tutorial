@@ -106,6 +106,13 @@
   - [5. `docker top`](#5-docker-top)
   - [6. Common Errors](#6-common-errors)
   - [7. Debugging Workflow](#7-debugging-workflow)
+- [Part 15: Docker Optimization](#part-15-docker-optimization)
+  - [1. Multi-Stage Builds](#1-multi-stage-builds)
+  - [2. Alpine Images](#2-alpine-images)
+  - [3. Layer Caching](#3-layer-caching)
+  - [4. Build Cache](#4-build-cache)
+  - [5. Reduce Image Size](#5-reduce-image-size)
+  - [6. Security Best Practices](#6-security-best-practices)
 
 ---
 
@@ -2108,3 +2115,185 @@ A repeatable sequence for diagnosing a misbehaving container, roughly in order o
 | **One-shot resource snapshot**     | `docker stats --no-stream`                    |
 | **Processes inside a container**   | `docker top <container>`                      |
 | **Override entrypoint to debug**   | `docker run -it --entrypoint sh <image>`      |
+
+## Part 15: Docker Optimization
+
+A bloated image is slow to build, slow to pull, slow to deploy, and carries a larger attack surface than necessary. This section covers the concrete techniques for shrinking images and speeding up builds—demonstrated with real before/after numbers on the [`multi-container-project/backend`](./multi-container-project/backend) NestJS service from [Part 11](#part-11-multi-container-project).
+
+### 1. Multi-Stage Builds
+
+A **multi-stage build** uses more than one `FROM` in a single Dockerfile. Each stage can have its own base image and its own tools; only the files you explicitly `COPY --from=<stage>` make it into the next stage. This lets you use a heavy "build" stage (compilers, dev dependencies) without any of that weight ending up in the final image.
+
+```dockerfile
+# backend/Dockerfile.prod
+
+# --- Stage 1: build ---
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+# --- Stage 2: production runtime ---
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package*.json ./
+RUN npm install --omit=dev
+COPY --from=build /app/dist ./dist
+EXPOSE 3000
+USER node
+CMD ["node", "dist/main"]
+```
+
+The `build` stage installs **all** dependencies (including TypeScript/Nest CLI dev tools) and compiles `src/` into `dist/`. The final stage starts fresh from a clean `node:20-alpine`, installs only **production** dependencies, and copies in just the compiled `dist/` output—the TypeScript source, dev dependencies, and build tools never reach the final image.
+
+Measured on this repo's backend service:
+
+| Dockerfile                    | Image Size |
+| ------------------------------ | ----------- |
+| Single-stage (dev, `npm install` with dev deps) | 560MB       |
+| Multi-stage (`Dockerfile.prod` above)           | 371MB       |
+
+```bash
+# Build a specific stage, or the final one by default
+docker build -f Dockerfile.prod -t backend:prod .
+
+# Target an earlier stage directly (useful for debugging the build stage)
+docker build -f Dockerfile.prod --target build -t backend:build-only .
+```
+
+### 2. Alpine Images
+
+Most official images publish an `-alpine` variant built on **Alpine Linux**, which uses `musl libc` and BusyBox instead of a full glibc-based distribution. The full, un-suffixed tag is always the largest by far—that part is consistent across every image family.
+
+```bash
+# Compare base image sizes directly
+docker pull node:20
+docker pull node:20-slim
+docker pull node:20-alpine
+
+docker images node
+```
+
+Measured locally, pulling all three today:
+
+| Tag               | Size    |
+| ------------------ | -------- |
+| `node:20`          | 1.59GB  |
+| `node:20-slim`     | 315MB   |
+| `node:20-alpine`   | 387MB   |
+
+- **Both `-slim` and `-alpine` are dramatically smaller than the full image**—that's the decision that matters most. Whether `-slim` or `-alpine` wins between themselves varies by image and changes over time as base layers are updated, so don't assume Alpine is always the smallest; measure the actual tag you're using with `docker images` if size is a hard requirement.
+
+- **Caveat**: Alpine's `musl libc` is not always binary-compatible with packages that ship precompiled `glibc` binaries (common with some native Node.js addons). If a package fails to install or run only on Alpine, that's usually why—either find an Alpine-compatible build or fall back to a `-slim` variant.
+
+### 3. Layer Caching
+
+Recap from [Part 5](#2-image-layers--caching): Docker caches each instruction's resulting layer and reuses it on the next build if nothing that affects it has changed. **Instruction order matters**—put whatever changes least often first.
+
+```dockerfile
+# GOOD: dependency install is cached until package*.json actually changes
+COPY package*.json ./
+RUN npm install
+COPY . .
+
+# BAD: any source code edit invalidates npm install too, forcing a full reinstall
+COPY . .
+RUN npm install
+```
+
+```bash
+# See which layers were cache hits ("CACHED") vs rebuilt during a build
+docker build -t backend:prod -f Dockerfile.prod .
+```
+
+### 4. Build Cache
+
+Beyond instruction ordering, Docker's build cache can be inspected, warmed from a remote image, and explicitly bypassed when needed.
+
+```bash
+# Force a clean rebuild, ignoring all cached layers
+docker build --no-cache -t backend:prod -f Dockerfile.prod .
+
+# Use a previously pushed image as a remote cache source (useful in CI,
+# where each build otherwise starts with an empty local cache)
+docker build \
+  --cache-from myregistry/backend:prod \
+  -t myregistry/backend:prod \
+  -f Dockerfile.prod .
+
+# Inspect disk space used by the build cache
+docker builder du
+
+# Clear the build cache
+docker builder prune
+```
+
+### 5. Reduce Image Size
+
+Beyond multi-stage builds and Alpine base images, a few more habits keep images lean:
+
+- **`.dockerignore` everything unnecessary**: `node_modules`, `.git`, test files, and docs shouldn't enter the build context at all (recap: [Part 7](#2-dockerfile--dockerignore)).
+
+- **Combine `RUN` commands** that install and clean up in the same layer—cleanup in a *later* layer doesn't shrink earlier layers, since each layer is immutable once written:
+
+  ```dockerfile
+  # GOOD: apt cache never persists in any layer
+  RUN apt-get update && apt-get install -y curl \
+      && rm -rf /var/lib/apt/lists/*
+
+  # BAD: apt cache is already baked into the first layer, prune only shrinks the writable layer
+  RUN apt-get update && apt-get install -y curl
+  RUN rm -rf /var/lib/apt/lists/*
+  ```
+
+- **Install only production dependencies** in the final image: `npm install --omit=dev` (or `npm ci --omit=dev`) instead of a full `npm install`.
+
+- **Avoid unnecessary tags/duplicate images**: `docker image prune` regularly to remove dangling/unused layers left over from iterative builds (recap: [Part 3](#7-removing-images)).
+
+- **Check what's actually inside an image** when size seems off:
+
+  ```bash
+  docker history backend:prod
+  ```
+
+### 6. Security Best Practices
+
+A smaller image is also a more secure one—fewer packages means fewer CVEs. A few additional hardening steps:
+
+- **Run as a non-root user**: Both stages above use `USER node` (the `node` image ships a built-in non-root `node` user) so the process never runs as `root` inside the container.
+
+  ```dockerfile
+  USER node
+  ```
+
+- **Pin exact base image versions**: Avoid `:latest` in production Dockerfiles (recap: [Part 5, section 4](#4-the-latest-tag-and-why-to-avoid-it))—an unpinned base can silently introduce a breaking or vulnerable version.
+
+- **Scan images for known vulnerabilities**:
+
+  ```bash
+  # Docker's built-in scanner
+  docker scout cves backend:prod
+
+  # Or the widely used open-source alternative
+  trivy image backend:prod
+  ```
+
+- **Never include secrets in the image** (recap: [Part 12, section 3](#3-secrets))—a `docker history` or `docker save` can expose anything baked into a layer, even if a later layer deletes it.
+
+- **Keep the base image updated**: Rebuild periodically (`docker build --pull`) to pick up upstream security patches to the base OS layer, rather than pinning a base image forever.
+
+### Summary Cheat Sheet
+
+| Task                                  | Command                                             |
+| --------------------------------------- | ------------------------------------------------------ |
+| **Build a specific Dockerfile**        | `docker build -f Dockerfile.prod -t <tag> .`          |
+| **Build only an earlier stage**        | `docker build --target <stage> -t <tag> .`            |
+| **Force rebuild, ignore cache**        | `docker build --no-cache -t <tag> .`                  |
+| **Use a remote image as build cache**  | `docker build --cache-from <image> -t <tag> .`        |
+| **Inspect build cache disk usage**     | `docker builder du`                                   |
+| **Clear the build cache**              | `docker builder prune`                                |
+| **View image layer history/sizes**     | `docker history <image>`                              |
+| **Scan for vulnerabilities**           | `docker scout cves <image>` / `trivy image <image>`   |
