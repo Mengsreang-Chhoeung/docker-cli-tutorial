@@ -127,6 +127,12 @@
   - [4. Run the Production Container](#4-run-the-production-container)
   - [5. Nginx Reverse Proxy](#5-nginx-reverse-proxy)
   - [6. HTTPS Overview](#6-https-overview)
+- [Part 18: Docker Compose in Production](#part-18-docker-compose-in-production)
+  - [1. Production Compose](#1-production-compose)
+  - [2. Restart Policy](#2-restart-policy)
+  - [3. Health Checks](#3-health-checks)
+  - [4. Logging](#4-logging)
+  - [5. Environment Management](#5-environment-management)
 
 ---
 
@@ -2560,3 +2566,152 @@ After Certbot runs, Nginx's config is updated to listen on `443`, serve the cert
 | **Reload Nginx**                    | `systemctl reload nginx`                          |
 | **Issue an HTTPS certificate**      | `certbot --nginx -d example.com`                  |
 | **Test certificate auto-renewal**   | `certbot renew --dry-run`                         |
+
+## Part 18: Docker Compose in Production
+
+The `docker-compose.yml` from [Part 11](#part-11-multi-container-project) is built for local development—hot reloading, verbose watch mode, no health checks. Production needs a different profile: optimized images, automatic recovery from crashes, readiness checks between dependent services, and bounded log growth. This section builds [`multi-container-project/docker-compose.prod.yml`](./multi-container-project/docker-compose.prod.yml), a production variant of that same project, and explains each addition.
+
+### 1. Production Compose
+
+Rather than editing the dev Compose file in place, keep a **separate** `docker-compose.prod.yml` that points at the optimized `Dockerfile.prod` variants from [Part 15](#1-multi-stage-builds)—a multi-stage backend build, and a Vite build served by Nginx for the frontend:
+
+```yaml
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    ports:
+      - "80:80"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "3000:3000"
+```
+
+```bash
+# Build and run the production stack explicitly
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Because Vite inlines `VITE_*` variables into the static bundle **at build time**, `VITE_API_URL` is passed in as a build `arg` rather than a runtime `environment:` value—by the time Nginx serves the files, there's no Node process left to read an environment variable from.
+
+### 2. Restart Policy
+
+Every service gets `restart: unless-stopped`, so Docker automatically restarts a crashed container—or every container after a host reboot—without manual intervention.
+
+```yaml
+services:
+  backend:
+    restart: unless-stopped
+```
+
+| Policy             | Behavior                                                            |
+| -------------------- | ---------------------------------------------------------------------- |
+| `no` (default)      | Never restart automatically.                                        |
+| `on-failure`        | Restart only if the container exits with a non-zero status.         |
+| `always`            | Always restart, even if manually stopped and the daemon restarts.   |
+| `unless-stopped`    | Like `always`, but stays stopped if you explicitly `docker stop` it. |
+
+`unless-stopped` is the right default for production services—it survives crashes and host reboots, but still respects an intentional `docker compose stop`.
+
+### 3. Health Checks
+
+A `healthcheck` tells Docker how to actively verify a service is actually ready to serve traffic—not just that its process has started. Combined with `depends_on: condition: service_healthy`, it makes dependent services wait for real readiness instead of just container-start order (recap the start-order-only caveat from [Part 10, section 3](#3-services)).
+
+```yaml
+services:
+  backend:
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+```
+
+> **Gotcha hit while building this example**: inside an Alpine-based container, `wget http://localhost:3000/health` can fail even though the app is listening, because `localhost` resolves to `::1` (IPv6) first and the Node process only binds IPv4. Use the container's own loopback address, `127.0.0.1`, explicitly in health checks.
+
+```bash
+# Check the live health status of every service
+docker compose -f docker-compose.prod.yml ps
+```
+
+### 4. Logging
+
+Left unconfigured, Docker's default `json-file` log driver grows forever, eventually filling the host's disk. A shared logging block caps log file size and rotation across every service using a Compose YAML anchor:
+
+```yaml
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  backend:
+    logging: *default-logging
+  db:
+    logging: *default-logging
+```
+
+This keeps at most 3 rotated log files of 10MB each **per container**—old logs are automatically discarded once that cap is reached, rather than growing without bound.
+
+```bash
+# Confirm the logging driver/options actually applied to a running container
+docker inspect <container> --format '{{.HostConfig.LogConfig}}'
+```
+
+### 5. Environment Management
+
+Production credentials and hostnames still flow through the same `.env` mechanism from [Part 12](#part-12-environment-variables), but the file itself should never be the same one used for local development.
+
+```bash
+# Keep separate .env files per environment, never committed
+.env.production
+.env.staging
+
+# Select the correct one explicitly when deploying
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+```
+
+- On the VPS from [Part 17](#part-17-deploy-with-docker), `.env.production` lives only on that server—generated once during setup, or synced via a secrets manager, never checked into git.
+- Combine this with the `_FILE`-suffixed Docker Secrets convention (recap: [Part 12, section 3](#3-secrets)) for anything more sensitive than a hostname or a non-critical config flag.
+
+### Summary Cheat Sheet
+
+| Task                                    | Command / Syntax                                          |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| **Run the production stack**              | `docker compose -f docker-compose.prod.yml up --build -d`    |
+| **Restart policy (recommended)**          | `restart: unless-stopped`                                    |
+| **Wait for real readiness, not just start**| `depends_on: <service>: condition: service_healthy`         |
+| **Define a health check**                 | `healthcheck: { test, interval, timeout, retries }`          |
+| **Check live health status**              | `docker compose ps`                                           |
+| **Cap log file size/rotation**            | `logging: { driver: json-file, options: { max-size, max-file } }` |
+| **Deploy with a specific env file**       | `docker compose --env-file .env.production up -d`            |
