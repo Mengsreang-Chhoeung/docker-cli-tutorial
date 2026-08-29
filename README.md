@@ -120,6 +120,13 @@
   - [4. Push an Image](#4-push-an-image)
   - [5. Pull an Image](#5-pull-an-image)
   - [6. Private Repositories](#6-private-repositories)
+- [Part 17: Deploy with Docker](#part-17-deploy-with-docker)
+  - [1. Deploy on a VPS](#1-deploy-on-a-vps)
+  - [2. Set Up the Ubuntu Server](#2-set-up-the-ubuntu-server)
+  - [3. Pull the Image](#3-pull-the-image)
+  - [4. Run the Production Container](#4-run-the-production-container)
+  - [5. Nginx Reverse Proxy](#5-nginx-reverse-proxy)
+  - [6. HTTPS Overview](#6-https-overview)
 
 ---
 
@@ -2417,3 +2424,139 @@ docker pull mengsreang/private-app:v1
 | **Push an image**                  | `docker push <user>/<repo>:<tag>`                  |
 | **Push all tags**                  | `docker push -a <user>/<repo>`                     |
 | **Pull an image**                  | `docker pull <user>/<repo>:<tag>`                  |
+
+## Part 17: Deploy with Docker
+
+With an image pushed to a registry ([Part 16](#part-16-docker-registry)), the last step is running it on a real server that the public internet can reach. This section walks through provisioning a basic Ubuntu VPS, pulling and running a production container, and putting Nginx in front of it as a reverse proxy with HTTPS.
+
+### 1. Deploy on a VPS
+
+A **VPS** (Virtual Private Server)—from providers like DigitalOcean, Linode, Hetzner, or AWS Lightsail—gives you a dedicated Linux machine with a public IP address, which is all Docker needs to run in production. The overall flow:
+
+```
+[ Your machine ]  --( docker push )-->  [ Registry ]  --( docker pull )-->  [ VPS ]  --> [ Public Internet ]
+```
+
+1. Provision a VPS running Ubuntu (this section assumes **Ubuntu 22.04 LTS** or newer).
+2. Install Docker on it.
+3. Pull your image from the registry and run it.
+4. Put Nginx in front of it to handle the public-facing domain and HTTPS.
+
+### 2. Set Up the Ubuntu Server
+
+Connect to the fresh server over SSH and install Docker using Docker's official convenience script.
+
+```bash
+# SSH into the VPS
+ssh root@your-server-ip
+
+# Update package lists and install Docker's official install script
+apt-get update
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+
+# Verify installation
+docker --version
+docker run hello-world
+
+# (Optional but recommended) run Docker commands without sudo
+usermod -aG docker $USER
+```
+
+> **Note**: `get.docker.com` is Docker's own official install script—review it before piping to `sh` on any server you don't fully trust, per general good security practice.
+
+### 3. Pull the Image
+
+Log in to your registry (recap: [Part 16, section 2](#2-login)) and pull the image you pushed from your development machine.
+
+```bash
+# Log in to the registry from the server
+docker login
+
+# Pull your production image
+docker pull mengsreang/my-app:v1
+```
+
+### 4. Run the Production Container
+
+Run the container the same way you tested it locally, with production-appropriate flags: detached, named, a restart policy, and only the ports it actually needs exposed.
+
+```bash
+docker run -d \
+  --name my-app \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  --env-file .env \
+  mengsreang/my-app:v1
+
+# Confirm it's running and healthy
+docker ps
+docker logs -f my-app
+curl http://localhost:3000/health
+```
+
+- **`--restart unless-stopped`**: Automatically restarts the container if it crashes or the server reboots—critical for unattended production uptime. (Full coverage of restart policies is in [Part 18: Docker Compose in Production](#part-18-docker-compose-in-production).)
+
+- Notice the container is **not** bound directly to a public-facing port like `80` or `443`—that's Nginx's job next.
+
+### 5. Nginx Reverse Proxy
+
+Rather than exposing the application container directly to the internet, run **Nginx** in front of it to handle the public domain, terminate HTTPS, and forward requests to the container over the internal Docker network or `localhost`.
+
+```nginx
+# /etc/nginx/sites-available/my-app
+server {
+    listen 80;
+    server_name example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+# Enable the site and reload Nginx
+ln -s /etc/nginx/sites-available/my-app /etc/nginx/sites-enabled/
+nginx -t   # test the config for syntax errors
+systemctl reload nginx
+```
+
+- **Why put Nginx in front at all?** It lets you host multiple applications behind one public IP (routed by `server_name`/domain), centralizes HTTPS termination in one place, and can serve static assets or cache responses without involving the application container.
+
+- **Nginx itself can also run in Docker** instead of being installed on the host directly—the same `proxy_pass` config applies, just pointed at the app container's name on a shared Docker network (recap: [Part 9, section 4](#4-custom-network)) instead of `127.0.0.1`.
+
+### 6. HTTPS Overview
+
+Production traffic should always be served over HTTPS. The most common approach on a self-managed VPS is **Let's Encrypt** via **Certbot**, which issues a free certificate and configures Nginx automatically.
+
+```bash
+# Install Certbot with the Nginx plugin
+apt-get install -y certbot python3-certbot-nginx
+
+# Obtain and install a certificate for your domain (edits the Nginx config in place)
+certbot --nginx -d example.com
+
+# Certificates auto-renew via a systemd timer/cron job installed by Certbot;
+# verify the renewal works without actually renewing yet
+certbot renew --dry-run
+```
+
+After Certbot runs, Nginx's config is updated to listen on `443`, serve the certificate, and redirect plain HTTP traffic to HTTPS—your application container itself never needs to know about TLS at all, since Nginx terminates it before proxying to `127.0.0.1:3000`.
+
+(A full production Compose setup—including health checks and restart policies alongside this same Nginx + HTTPS pattern—is covered in [Part 18](#part-18-docker-compose-in-production) and [Part 20](#part-20-complete-real-world-project).)
+
+### Summary Cheat Sheet
+
+| Task                              | Command                                          |
+| ------------------------------------ | --------------------------------------------------- |
+| **Install Docker on Ubuntu**        | `curl -fsSL https://get.docker.com \| sh`         |
+| **Run with a restart policy**       | `docker run -d --restart unless-stopped ...`      |
+| **Test Nginx config**               | `nginx -t`                                        |
+| **Reload Nginx**                    | `systemctl reload nginx`                          |
+| **Issue an HTTPS certificate**      | `certbot --nginx -d example.com`                  |
+| **Test certificate auto-renewal**   | `certbot renew --dry-run`                         |
