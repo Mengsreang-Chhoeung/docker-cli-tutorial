@@ -74,6 +74,16 @@
   - [6. Environment Variables](#6-environment-variables)
   - [7. Build Multiple Services](#7-build-multiple-services)
   - [8. Start Everything with One Command](#8-start-everything-with-one-command)
+- [Part 11: Multi-Container Project](#part-11-multi-container-project)
+  - [1. Project Overview](#1-project-overview)
+  - [2. Backend: NestJS + PostgreSQL + Redis](#2-backend-nestjs--postgresql--redis)
+  - [3. Frontend: React/Vite](#3-frontend-reactvite)
+  - [4. Compose: Wiring It All Together](#4-compose-wiring-it-all-together)
+  - [5. Networks](#5-networks)
+  - [6. Environment Variables](#6-environment-variables)
+  - [7. Dependencies (Startup Order)](#7-dependencies-startup-order)
+  - [8. Persistent Data](#8-persistent-data)
+  - [9. Run It](#9-run-it)
 
 ---
 
@@ -1393,3 +1403,182 @@ docker compose down -v
 | **Stop services**                  | `docker compose stop`                |
 | **Stop and remove everything**     | `docker compose down`                |
 | **Stop and remove incl. volumes**  | `docker compose down -v`             |
+
+## Part 11: Multi-Container Project
+
+Time to combine everything from Parts 8–10 into a real multi-container application. The full project lives in [`multi-container-project/`](./multi-container-project) and is composed of four services: a **React/Vite** frontend, a **NestJS** backend, a **PostgreSQL** database, and a **Redis** cache—all orchestrated with a single `docker-compose.yml`.
+
+### 1. Project Overview
+
+```
+multi-container-project/
+├── docker-compose.yml
+├── .env.example
+├── frontend/          # React (Vite) - talks to the backend API
+│   ├── Dockerfile
+│   ├── package.json
+│   └── src/
+└── backend/            # NestJS - exposes /health, /db-check, /cache-check
+    ├── Dockerfile
+    ├── package.json
+    └── src/
+```
+
+- **Frontend** fetches `/health` from the backend on load and renders the response.
+- **Backend** exposes three endpoints: `/health` (liveness), `/db-check` (round-trips a query to PostgreSQL), and `/cache-check` (reads/writes a key in Redis).
+- **PostgreSQL** and **Redis** run as their own services using official images—no custom Dockerfile needed for either.
+
+### 2. Backend: NestJS + PostgreSQL + Redis
+
+The backend ([`backend/src/app.service.ts`](./multi-container-project/backend/src/app.service.ts)) opens a `pg.Pool` for PostgreSQL and an `ioredis` client for Redis, both configured entirely from environment variables so the same code runs unmodified across environments:
+
+```typescript
+this.pool = new Pool({
+  host: this.config.get("DB_HOST", "db"),
+  port: Number(this.config.get("DB_PORT", "5432")),
+  user: this.config.get("DB_USER", "postgres"),
+  password: this.config.get("DB_PASSWORD", "postgres"),
+  database: this.config.get("DB_NAME", "app_db"),
+});
+
+this.redis = new Redis({
+  host: this.config.get("REDIS_HOST", "redis"),
+  port: Number(this.config.get("REDIS_PORT", "6379")),
+});
+```
+
+Notice the hosts are `db` and `redis`—the **service names** from `docker-compose.yml`, resolved automatically by Docker's embedded DNS (see [Part 9, section 6](#6-dns-inside-docker)).
+
+```dockerfile
+# backend/Dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 3000
+CMD ["npm", "run", "start:dev"]
+```
+
+### 3. Frontend: React/Vite
+
+The frontend ([`frontend/src/App.jsx`](./multi-container-project/frontend/src/App.jsx)) reads the backend's URL from a Vite environment variable and calls its `/health` endpoint:
+
+```jsx
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+useEffect(() => {
+  fetch(`${API_URL}/health`)
+    .then((res) => res.json())
+    .then(setHealth);
+}, []);
+```
+
+```dockerfile
+# frontend/Dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 5173
+CMD ["npm", "run", "dev"]
+```
+
+### 4. Compose: Wiring It All Together
+
+All four services are defined in [`docker-compose.yml`](./multi-container-project/docker-compose.yml). `frontend` and `backend` use `build` (custom Dockerfiles); `db` and `redis` use official `image`s directly:
+
+```yaml
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3000
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+```
+
+### 5. Networks
+
+No network is explicitly created by hand—Compose gives every service in the file a shared `app-net` bridge network, so `frontend`, `backend`, `db`, and `redis` can all resolve each other by service name (recap: [Part 10, section 4](#4-networks)).
+
+```yaml
+networks:
+  app-net:
+    driver: bridge
+```
+
+### 6. Environment Variables
+
+Database credentials are pulled from a `.env` file at the project root (never committed—only [`.env.example`](./multi-container-project/.env.example) is), with sane defaults inline via `${VAR:-default}` syntax:
+
+```yaml
+environment:
+  DB_USER: ${DB_USER:-postgres}
+  DB_PASSWORD: ${DB_PASSWORD:-postgres}
+  DB_NAME: ${DB_NAME:-app_db}
+```
+
+Copy the example file before first run:
+
+```bash
+cp .env.example .env
+```
+
+### 7. Dependencies (Startup Order)
+
+`depends_on` chains the startup order: `frontend` waits on `backend`, and `backend` waits on `db` and `redis`. As covered in [Part 10, section 3](#3-services), this only controls **start order**, not readiness—the backend's `pg.Pool` and `ioredis` client both retry/queue connections internally, so brief startup races are handled gracefully here.
+
+### 8. Persistent Data
+
+Both stateful services mount a named volume so data survives `docker compose down` (without `-v`):
+
+```yaml
+volumes:
+  postgres_data: # PostgreSQL data directory
+  redis_data: # Redis RDB/AOF persistence directory
+```
+
+This is the same pattern from [Part 8: Docker Volumes](#part-8-docker-volumes)—the volumes are managed by Docker and can be backed up/restored exactly as described there.
+
+### 9. Run It
+
+```bash
+cd multi-container-project
+cp .env.example .env
+
+# Build images and start every service
+docker compose up --build
+
+# Frontend:  http://localhost:5173
+# Backend:   http://localhost:3000/health
+#            http://localhost:3000/db-check
+#            http://localhost:3000/cache-check
+
+# Tear down (add -v to also delete the Postgres/Redis volumes)
+docker compose down
+```
