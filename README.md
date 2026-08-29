@@ -58,6 +58,13 @@
   - [5. Data Persistence](#5-data-persistence)
   - [6. Backup a Volume](#6-backup-a-volume)
   - [7. Restore a Volume](#7-restore-a-volume)
+- [Part 9: Docker Networking](#part-9-docker-networking)
+  - [1. Bridge Network](#1-bridge-network)
+  - [2. Host Network](#2-host-network)
+  - [3. None Network](#3-none-network)
+  - [4. Custom Network](#4-custom-network)
+  - [5. Connect Multiple Containers](#5-connect-multiple-containers)
+  - [6. DNS Inside Docker](#6-dns-inside-docker)
 
 ---
 
@@ -1048,3 +1055,129 @@ docker run -d \
 | **Bind mount**             | `docker run -v <host_path>:<container_path> ...`   |
 | **Named volume mount**     | `docker run -v <volume_name>:<container_path> ...` |
 | **Anonymous volume**       | `docker run -v <container_path> ...`               |
+
+## Part 9: Docker Networking
+
+By default, containers are isolated from the host and from each other. Docker Networking controls how containers communicate—with the outside world, with the host, and with one another. This section covers the built-in network drivers, how to create your own network, and how containers find each other by name.
+
+### 1. Bridge Network
+
+**Bridge** is Docker's default network driver. When the Docker daemon starts, it creates a virtual bridge (`docker0` on Linux) on the host, and every container that doesn't specify a network is attached to it.
+
+```bash
+# List existing networks (note the default "bridge" network)
+docker network list
+
+# Run a container without specifying --network -> it joins the default bridge
+docker run -d --name web nginx:alpine
+
+# Inspect the default bridge network to see attached containers and subnet
+docker network inspect bridge
+```
+
+- **Isolation**: Containers on the default bridge network can reach each other and the outside world, but are not reachable from the host or other networks unless ports are published with `-p`.
+
+- **Caveat**: Containers on the **default** bridge network can only reach each other by IP address—not by container name. Use a **Custom Network** (below) if you need name-based DNS resolution.
+
+### 2. Host Network
+
+The **Host** network driver removes network isolation between the container and the Docker host entirely—the container shares the host's network stack directly.
+
+```bash
+# Run NGINX using the host's network directly (Linux only)
+docker run -d --name web --network host nginx:alpine
+
+# No -p flag is needed or possible: the container binds directly to the host's ports
+curl http://localhost:80
+```
+
+- **Best for**: Performance-sensitive workloads that want to avoid Docker's network address translation (NAT) overhead.
+
+- **Caveat**: Port mapping (`-p`) has no effect and is unnecessary since there's no network isolation to bridge—the container's ports **are** the host's ports, so port conflicts with other services on the host are possible. Not supported on Docker Desktop for Mac/Windows in the same way as on Linux.
+
+### 3. None Network
+
+The **None** driver disables networking entirely. The container gets its own network namespace but no network interfaces are configured beyond a loopback.
+
+```bash
+# Run a container with no network access at all
+docker run -d --name isolated-task --network none alpine sleep 3600
+```
+
+- **Best for**: Running fully isolated batch jobs or security-sensitive tasks that should have zero network access.
+
+### 4. Custom Network
+
+Creating your own **bridge** network is the recommended approach for multi-container applications, because Docker provides automatic DNS resolution by container name on any user-defined network (unlike the default bridge).
+
+```bash
+# Create a custom bridge network
+docker network create app-net
+
+# Inspect it
+docker network inspect app-net
+
+# Run containers attached to the custom network
+docker run -d --name redis-cache --network app-net redis:alpine
+docker run -d --name web-api --network app-net -p 8080:8080 my-web-api
+
+# Remove a network (must have no containers attached)
+docker network rm app-net
+
+# Remove all unused networks
+docker network prune
+```
+
+### 5. Connect Multiple Containers
+
+Multiple containers can share a network to communicate, and an already-running container can be attached to additional networks after the fact.
+
+```bash
+# Attach an already-running container to another network
+docker network connect app-net web-api
+
+# Detach a container from a network
+docker network disconnect app-net web-api
+
+# Run a Postgres database and an API on the same custom network
+docker network create backend-net
+docker run -d --name db --network backend-net -e POSTGRES_PASSWORD=secret postgres:16-alpine
+docker run -d --name api --network backend-net -p 3000:3000 -e DB_HOST=db my-api
+```
+
+Inside the `api` container, the application can connect to the database using the hostname `db`—Docker resolves it to the container's internal IP automatically.
+
+### 6. DNS Inside Docker
+
+On any user-defined (custom) network, Docker runs an embedded DNS server that resolves container names to their internal IP addresses—no manual `/etc/hosts` editing required.
+
+```bash
+# From inside "web-api" (on app-net), ping "redis-cache" by name
+docker exec -it web-api ping redis-cache
+
+# Look up the resolved IP for a container name
+docker exec -it web-api getent hosts redis-cache
+```
+
+- **Name resolution scope**: Only containers on the **same custom network** can resolve each other by name. Containers on the default bridge network cannot.
+
+- **`--network-alias`**: Assigns additional DNS names to a container on a given network, useful for giving a service multiple aliases (e.g., `db` and `primary-db`).
+
+  ```bash
+  docker run -d --name postgres-1 --network backend-net --network-alias db postgres:16-alpine
+  ```
+
+### Summary Cheat Sheet
+
+| Task                          | Command                                              |
+| ------------------------------ | ----------------------------------------------------- |
+| **List networks**              | `docker network ls`                                  |
+| **Create custom network**      | `docker network create <name>`                       |
+| **Inspect network**            | `docker network inspect <name>`                      |
+| **Remove network**             | `docker network rm <name>`                           |
+| **Remove unused networks**     | `docker network prune`                               |
+| **Run on custom network**      | `docker run --network <name> ...`                    |
+| **Connect running container**  | `docker network connect <network> <container>`       |
+| **Disconnect container**       | `docker network disconnect <network> <container>`    |
+| **Run with no networking**     | `docker run --network none ...`                      |
+| **Run with host networking**   | `docker run --network host ...`                      |
