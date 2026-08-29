@@ -50,6 +50,14 @@
   - [4. Run Container](#4-run-container)
   - [5. Test API](#5-test-api)
   - [6. Common Mistakes to Avoid](#6-common-mistakes-to-avoid)
+- [Part 8: Docker Volumes](#part-8-docker-volumes)
+  - [1. Why Volumes Matter](#1-why-volumes-matter)
+  - [2. Bind Mount](#2-bind-mount)
+  - [3. Named Volume](#3-named-volume)
+  - [4. Anonymous Volume](#4-anonymous-volume)
+  - [5. Data Persistence](#5-data-persistence)
+  - [6. Backup a Volume](#6-backup-a-volume)
+  - [7. Restore a Volume](#7-restore-a-volume)
 
 ---
 
@@ -895,3 +903,148 @@ curl http://localhost:3000/health
 - **Copying code before running `npm install`**: Copying `COPY . .` before `RUN npm install` invalidates the layer cache on every single code edit, forcing `npm install` to re-run on every build.
 
 - **Running as root user**: By default, Docker containers run as `root`. For production environments, switch to a non-root user (e.g., adding `USER node` before `CMD` in your Dockerfile) to improve security.
+
+## Part 8: Docker Volumes
+
+Containers are designed to be ephemeral—when a container is removed, any data written to its writable layer disappears with it. This section covers Docker's storage mechanisms for persisting data beyond a container's lifecycle, and how to back it up and restore it.
+
+### 1. Why Volumes Matter
+
+By default, all files created inside a container are stored in that container's thin writable layer:
+
+- **Data is lost on removal**: If you `docker rm` a container, its writable layer—and any data in it—is deleted permanently.
+
+- **Data can't be easily shared**: Files inside a container's writable layer aren't accessible to other containers or the host without extra tooling.
+
+- **Performance overhead**: Writing large amounts of data into the writable layer is less efficient than writing to a Volume, which bypasses the storage driver entirely.
+
+Docker solves these problems with three storage mechanisms: **Bind Mounts**, **Named Volumes**, and **Anonymous Volumes**.
+
+### 2. Bind Mount
+
+A **Bind Mount** maps a specific file or directory on the **host machine** directly into the container. The host is fully responsible for managing the path—Docker just links to it.
+
+```bash
+# Mount the current host directory (./app) into /app inside the container
+docker run -d \
+  --name dev-container \
+  -v $(pwd)/app:/app \
+  node:20-alpine
+
+# Equivalent using the more explicit --mount syntax
+docker run -d \
+  --name dev-container \
+  --mount type=bind,source=$(pwd)/app,target=/app \
+  node:20-alpine
+```
+
+- **Best for**: Local development, where you want source code changes on your host to instantly reflect inside a running container (hot reloading).
+
+- **Caveat**: The host path must already exist and is tightly coupled to your local machine's file structure, which makes Bind Mounts less portable across environments.
+
+### 3. Named Volume
+
+A **Named Volume** is storage that Docker creates and fully manages inside its own storage area on the host (typically under `/var/lib/docker/volumes/` on Linux). You reference it by name rather than a host path.
+
+```bash
+# Create a named volume explicitly
+docker volume create postgres_data
+
+# Run a container using the named volume
+docker run -d \
+  --name my-db \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:16-alpine
+
+# List all volumes
+docker volume ls
+
+# Inspect a volume (shows its actual location on the host)
+docker volume inspect postgres_data
+```
+
+- **Best for**: Databases and any persistent application state (recommended over Bind Mounts for production).
+
+- **Advantage**: Docker manages the lifecycle and location, making Named Volumes portable across hosts and easy to back up, migrate, or share between containers.
+
+### 4. Anonymous Volume
+
+An **Anonymous Volume** is created automatically when a container specifies a mount path without naming a source. Docker assigns it a random hash as an identifier instead of a human-readable name.
+
+```bash
+# No source specified before the colon -> Docker creates an anonymous volume
+docker run -d --name my-app -v /app/data node:20-alpine
+```
+
+- **Behavior**: Functions identically to a Named Volume, but because it has no memorable name, it's easy to lose track of.
+
+- **Caveat**: Anonymous Volumes are **not** removed automatically when their container is removed (unless you use `docker rm -v`), which commonly leads to orphaned volumes cluttering disk space. Prefer Named Volumes when data needs to persist and be found again later.
+
+### 5. Data Persistence
+
+Because Named Volumes exist independently of any single container, the same volume can be reattached to a brand-new container after the original is deleted—the data survives.
+
+```bash
+# Run a container, write data, then remove the container (data persists in the volume)
+docker run -d --name db-v1 -v postgres_data:/var/lib/postgresql/data postgres:16-alpine
+docker rm -f db-v1
+
+# Attach the SAME volume to a fresh container—the data is still there
+docker run -d --name db-v2 -v postgres_data:/var/lib/postgresql/data postgres:16-alpine
+```
+
+This decouples your data's lifecycle from any individual container's lifecycle, which is essential for safely recreating containers during updates or redeployments.
+
+### 6. Backup a Volume
+
+To back up a Named Volume, run a temporary container that mounts the volume alongside a host directory, then archive the volume's contents into a `.tar.gz` file on the host.
+
+```bash
+# Back up the "postgres_data" volume into a tarball on the host's current directory
+docker run --rm \
+  -v postgres_data:/volume-data \
+  -v $(pwd):/backup \
+  alpine \
+  tar czf /backup/postgres_data_backup.tar.gz -C /volume-data .
+```
+
+- `-v postgres_data:/volume-data`: Mounts the volume you want to back up (read-only in spirit, though not enforced here).
+
+- `-v $(pwd):/backup`: Mounts the current host directory so the backup file lands where you can access it.
+
+- `--rm`: Automatically removes the temporary helper container once the backup completes.
+
+### 7. Restore a Volume
+
+To restore, create (or reuse) a target volume, then extract the backup tarball back into it using the same temporary-container pattern.
+
+```bash
+# Ensure the target volume exists
+docker volume create postgres_data_restored
+
+# Extract the backup archive into the volume
+docker run --rm \
+  -v postgres_data_restored:/volume-data \
+  -v $(pwd):/backup \
+  alpine \
+  tar xzf /backup/postgres_data_backup.tar.gz -C /volume-data
+
+# Attach the restored volume to a new container to verify
+docker run -d \
+  --name db-restored \
+  -v postgres_data_restored:/var/lib/postgresql/data \
+  postgres:16-alpine
+```
+
+### Summary Cheat Sheet
+
+| Task                       | Command                                            |
+| -------------------------- | --------------------------------------------------- |
+| **Create named volume**    | `docker volume create <name>`                      |
+| **List volumes**           | `docker volume ls`                                 |
+| **Inspect volume**         | `docker volume inspect <name>`                     |
+| **Remove volume**          | `docker volume rm <name>`                          |
+| **Remove unused volumes**  | `docker volume prune`                              |
+| **Bind mount**             | `docker run -v <host_path>:<container_path> ...`   |
+| **Named volume mount**     | `docker run -v <volume_name>:<container_path> ...` |
+| **Anonymous volume**       | `docker run -v <container_path> ...`               |
