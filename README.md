@@ -816,6 +816,7 @@ FROM node:20-alpine
 
 # 2. Build-time argument and runtime environment
 ARG BUILD_DATE
+LABEL org.opencontainers.image.created=$BUILD_DATE
 ENV NODE_ENV=production
 
 # 3. Set working directory
@@ -929,22 +930,27 @@ Create `Dockerfile`:
 # 1. Use lightweight LTS base image
 FROM node:20-alpine
 
-# 2. Set working directory
+# 2. Build-time argument and runtime environment
+ARG BUILD_DATE
+LABEL org.opencontainers.image.created=$BUILD_DATE
+ENV NODE_ENV=production
+
+# 3. Set working directory
 WORKDIR /app
 
-# 3. Copy package definitions first to utilize layer caching
+# 4. Copy package definitions first to utilize layer caching
 COPY package*.json ./
 
-# 4. Install production dependencies
+# 5. Install production dependencies
 RUN npm ci --only=production
 
-# 5. Copy remaining application code
+# 6. Copy remaining application code
 COPY . .
 
-# 6. Expose port 3000
+# 7. Expose port 3000
 EXPOSE 3000
 
-# 7. Define entry point command
+# 8. Define entry point command
 CMD ["npm", "start"]
 ```
 
